@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Голосовой, групповой и текстовый чат (WebRTC + Socket.IO)",
   "main": "server.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node server.js"
   },

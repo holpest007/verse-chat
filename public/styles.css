@@ -1243,3 +1243,24 @@ textarea.s-input { resize: vertical; font-family: inherit; }
 .mod-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; font-size: 14px; }
 .mod-btns { display: flex; gap: 6px; }
 
+
+/* ==========================================================================
+   Фиксы: переполнение премиум-функций и шапка вкладки Premium
+   ========================================================================== */
+/* Ничто внутри настроек и вкладок не должно вылезать за ширину экрана */
+.settings-view, .settings-body, .panel { max-width: 100%; overflow-x: hidden; }
+.s-input, select.s-input, textarea.s-input { max-width: 100%; width: 100%; }
+.chips-wrap, .scheme-grid, .gift-grid { max-width: 100%; }
+.scheme { min-width: 0; }
+.scheme span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+/* Плашка «Доступно в Premium» — переносим на узких экранах, кнопка не растягивает блок */
+.prem-locked { flex-wrap: wrap; }
+.prem-locked .btn { width: auto; }
+.s-row { min-width: 0; }
+.s-row-texts { min-width: 0; }
+.s-row-texts small { white-space: normal; }
+
+/* Шапка вкладки Premium с кнопкой «Назад» */
+.subs-head-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 18px; }
+.subs-head-row .subs-title { margin-bottom: 0; }
+.subs-head-row .s-back { flex-shrink: 0; margin-top: 2px; }

@@ -34,8 +34,12 @@ socket.on('banned', () => {
     '<div style="display:flex;height:100vh;align-items:center;justify-content:center;color:#e0524a;font:600 20px Inter,sans-serif;text-align:center;padding:24px">Ваш аккаунт заблокирован администрацией.</div>';
 });
 
-// STUN-сервер для WebRTC
+// Конфигурация WebRTC. Подтягиваем ICE-серверы (STUN/TURN) с сервера —
+// на проде TURN задаётся в .env и нужен для звонков между разными сетями.
 const RTC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+fetch('/rtc-config').then((r) => r.json()).then((c) => {
+  if (c && Array.isArray(c.iceServers)) RTC_CONFIG.iceServers = c.iceServers;
+}).catch(() => {});
 
 // Города России для поля с поиском по вводу
 const CITIES = [
@@ -65,6 +69,8 @@ const CITIES = [
   'Хасавюрт', 'Домодедово', 'Нефтеюганск', 'Березники', 'Каспийск',
   'Троицк',
 ];
+// Города — по алфавиту (русская локаль)
+CITIES.sort((a, b) => a.localeCompare(b, 'ru'));
 
 // Флаг России (SVG) — для карточек собеседника на экранах разговора
 const RF_FLAG =
@@ -1277,7 +1283,8 @@ function renderSubs() {
     const isCurrent = plan.id === myPlan;
     const card = document.createElement('div');
     card.className = 'sub-card ' + plan.accent + (isCurrent ? ' current' : '');
-    const priceText = plan.price === 0 ? 'Бесплатно' : plan.price + ' ₽/мес';
+    // Оплата пока отключена — у платных тарифов вместо цены показываем «Soon»
+    const priceText = plan.price === 0 ? 'Бесплатно' : 'Soon';
     const features = plan.features.map((f) => `<li><i class="fa-solid fa-check"></i> ${f}</li>`).join('');
     let btn;
    if (isCurrent) {
@@ -1302,21 +1309,10 @@ function renderSubs() {
   });
 }
 
-// Демо-оплата: показываем подтверждение, затем эмулируем успешную оплату
+// Оплата пока отключена: все функции и так доступны, платные тарифы — «Soon»
 function buyPlan(plan) {
-  if (plan === myPlan) return;
-  if (plan === 'free') {
-    // Переход на бесплатный — без оплаты
-    doBuy('free');
-    return;
-  }
-  const price = plan === 'plus' ? 199 : 399;
-  const ok = confirm(
-    `Оплата тарифа «${PLAN_NAMES[plan]}» — ${price} ₽/мес.\n\n` +
-    'Это ДЕМО-режим оплаты (реальные деньги не списываются). ' +
-    'Продолжить и активировать тариф?'
-  );
-  if (ok) doBuy(plan);
+  if (plan === 'free') { doBuy('free'); return; }
+  toast('Оплата скоро — сейчас все функции доступны бесплатно');
 }
 
 function doBuy(plan) {
@@ -1343,6 +1339,10 @@ function updatePremiumUI() {
   const navPrem = document.querySelector('.nav-premium');
   if (navPrem) navPrem.classList.toggle('has-premium', myPlan !== 'free');
 }
+
+// Кнопка «Назад» на вкладке Premium → возврат на голосовой чат
+const subsBackBtn = document.getElementById('subs-back');
+if (subsBackBtn) subsBackBtn.addEventListener('click', () => switchTab('voice'));
 
 // Пункт «Premium-подписка» в настройках → переключение на вкладку Premium
 const sPremiumBtn = document.getElementById('s-premium');

@@ -38,8 +38,30 @@ function kickUser(uuid) {
 // Подключаем API и статику админ-панели (роль admin/superAdmin, защита JWT)
 admin.mount(app, io, { kickUser });
 
+// Конфигурация ICE для WebRTC. STUN бесплатный; TURN нужен для звонков между
+// разными сетями (за NAT). TURN задаётся в .env — без него голос может не пройти
+// у части пользователей. Пример: TURN_URL=turn:host:3478 TURN_USER=... TURN_PASS=...
+app.get('/rtc-config', (req, res) => {
+  const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+  if (process.env.TURN_URL) {
+    iceServers.push({
+      urls: process.env.TURN_URL,
+      username: process.env.TURN_USER || '',
+      credential: process.env.TURN_PASS || '',
+    });
+  }
+  res.json({ iceServers });
+});
+
 // Тарифы подписок (цены в рублях) — общий источник правды для сервера
 const PLANS = { free: 0, plus: 199, max: 399 };
+
+// ВРЕМЕННО: все премиум-функции открыты всем (оплата отключена, тарифы = «Soon»).
+// Чтобы включить платный доступ обратно — поставьте OPEN_ALL = false.
+const OPEN_ALL = true;
+function premAccess(u) {
+  return OPEN_ALL || (u && u.subscription && u.subscription !== 'free');
+}
 
 // ============================================================================
 //  ХРАНИЛИЩА В ПАМЯТИ
@@ -142,9 +164,9 @@ function compatible(a, b, aId, bId) {
     genderMatches(b.filterGenders, a.gender) &&
     ageMatches(b.filterAges, a.age);
   if (!base) return false;
-  // Премиум-условия (учитываем только для платных искателей)
-  const aPrem = a.subscription && a.subscription !== 'free';
-  const bPrem = b.subscription && b.subscription !== 'free';
+  // Премиум-условия фильтрации (сейчас доступны всем)
+  const aPrem = premAccess(a);
+  const bPrem = premAccess(b);
   if (aPrem && !zodiacMatches(a.filterZodiac, b.zodiac)) return false;
   if (bPrem && !zodiacMatches(b.filterZodiac, a.zodiac)) return false;
   if ((aPrem || bPrem) && !interestsMatch(a, b)) return false;
@@ -237,7 +259,7 @@ function tryMatch(socket, mode) {
   // Совместимого нет — встаём в очередь.
   // Приоритетный поиск (премиум): платные тарифы встают в НАЧАЛО очереди,
   // поэтому их находят быстрее следующие искатели.
-  if (me.subscription && me.subscription !== 'free') queue.unshift(socket.id);
+  if (premAccess(me)) queue.unshift(socket.id);
   else queue.push(socket.id);
   socket.emit(mode + ':searching');
   socket.emit(mode + ':none'); // фронт покажет «Собеседников пока нет», но поиск продолжается
@@ -267,7 +289,10 @@ io.on('connection', (socket) => {
   // По нему загружаем/создаём запись в БД — так профиль, подписка и роль сохраняются.
   const uuid = String(socket.handshake.auth?.uuid || '').slice(0, 64) || 'anon-' + socket.id;
   socket.data.uuid = uuid;
-  const record = db.getOrCreateUser(uuid);
+  // Загрузка из БД защищена: даже если БД недоступна, соединение и все
+  // обработчики событий всё равно регистрируются, и чат/группы работают.
+  let record = {};
+  try { record = db.getOrCreateUser(uuid) || {}; } catch (e) { record = {}; }
 
   // Забаненных сразу отключаем
   if (record.isBanned) {
@@ -275,7 +300,7 @@ io.on('connection', (socket) => {
     socket.disconnect(true);
     return;
   }
-  db.addActivity(uuid, 'login', '');
+  try { db.addActivity(uuid, 'login', ''); } catch (e) {}
 
   // Данные пользователя в памяти (для быстрого подбора) + постоянные поля из БД
   users.set(socket.id, {
@@ -285,7 +310,7 @@ io.on('connection', (socket) => {
     ageExact: record.age || null,    // точный возраст (число) из профиля
     nick: record.nick || '',
     city: record.city || 'Москва',
-    subscription: db.activePlan(record), // free | plus | max (с учётом срока)
+    subscription: (() => { try { return db.activePlan(record) || 'free'; } catch (e) { return 'free'; } })(),
     role: record.role || 'user',
     anon: false,                     // режим «анонимно» (премиум) — включается клиентом
     // Премиум-поля профиля (для превью и фильтров)
@@ -317,8 +342,8 @@ io.on('connection', (socket) => {
     if (['18-24', '25-32', '33'].includes(data.age)) me.age = data.age;
     if (data.ageNum) me.ageExact = Math.max(18, Math.min(99, parseInt(data.ageNum, 10) || 18));
     if (typeof data.nick === 'string') me.nick = data.nick.slice(0, 20);
-    // Сохраняем профиль в БД (премиум-поля применяются только при подписке)
-    const prem = me.subscription !== 'free';
+    // Сохраняем профиль в БД (премиум-поля сейчас доступны всем)
+    const prem = premAccess(me);
     if (prem) {
       me.avatar = data.avatar || me.avatar;
       me.description = (data.description || '').slice(0, 300);
@@ -370,7 +395,7 @@ io.on('connection', (socket) => {
   socket.on('anon:set', (on) => {
     const me = users.get(socket.id);
     if (!me) return;
-    me.anon = !!on && me.subscription !== 'free'; // только для платных тарифов
+    me.anon = !!on && premAccess(me); // сейчас доступно всем
     // «Максимум»: временный ник, который меняется не реже раза в 24 ч
     if (me.anon && me.subscription === 'max') {
       const stale = !me.anonNickTime || (Date.now() - me.anonNickTime > 24 * 60 * 60 * 1000);
@@ -385,7 +410,7 @@ io.on('connection', (socket) => {
   socket.on('invisible:set', (on) => {
     const me = users.get(socket.id);
     if (!me) return;
-    me.invisible = !!on && me.subscription !== 'free';
+    me.invisible = !!on && premAccess(me);
     broadcastCounts();
   });
 
@@ -418,7 +443,7 @@ io.on('connection', (socket) => {
     me.city = filters.city || me.city;
     me.filterGenders = filters.genders || ['any'];
     me.filterAges = filters.ages || [];
-    const prem = me.subscription && me.subscription !== 'free';
+    const prem = premAccess(me);
     me.filterInterests = prem && Array.isArray(filters.interests) ? filters.interests.slice(0, 10) : [];
     me.filterZodiac = prem ? (filters.zodiac || 'any') : 'any';
   }
@@ -470,11 +495,11 @@ io.on('connection', (socket) => {
     const text = String(payload.text || '').slice(0, 2000);
     const partner = users.get(me.partnerId);
     io.to(me.partnerId).emit('text:message', { from: 'peer', text });
-    // История переписки (премиум): сохраняем у обоих, если у них есть подписка
-    if (me.subscription !== 'free') {
+    // История переписки: сохраняем у обоих (сейчас доступно всем)
+    if (premAccess(me)) {
       db.addMessage(me.uuid, partner ? partner.uuid : me.partnerId, partner ? partner.nick : '', 'text', 'out', text);
     }
-    if (partner && partner.subscription !== 'free') {
+    if (partner && premAccess(partner)) {
       db.addMessage(partner.uuid, me.uuid, me.nick, 'text', 'in', text);
     }
   });
@@ -483,7 +508,7 @@ io.on('connection', (socket) => {
   socket.on('gift:send', (payload) => {
     const me = users.get(socket.id);
     if (!me || !me.partnerId) return;
-    if (me.subscription === 'free') return; // подарки — премиум
+    if (!premAccess(me)) return; // подарки (сейчас доступны всем)
     const gift = String(payload.gift || '').slice(0, 8);
     io.to(me.partnerId).emit('gift:recv', { gift, from: me.nick || 'Собеседник' });
   });
@@ -492,10 +517,10 @@ io.on('connection', (socket) => {
   socket.on('history:get', (ack) => {
     const me = users.get(socket.id);
     if (typeof ack !== 'function') return;
-    if (!me || me.subscription === 'free') return ack({ ok: false, messages: [] });
+    if (!me || !premAccess(me)) return ack({ ok: false, messages: [] });
     let messages = db.getMessages(me.uuid);
-    // Тариф «Плюс» — история только за 7 дней; «Максимум» — вся
-    if (me.subscription === 'plus') {
+    // Ограничение 7 дней действует только для платного «Плюс» (сейчас всё открыто)
+    if (!OPEN_ALL && me.subscription === 'plus') {
       const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
       messages = messages.filter((m) => m.createdAt >= weekAgo);
     }
@@ -508,8 +533,8 @@ io.on('connection', (socket) => {
   socket.on('group:create', (data, ack) => {
     const me = users.get(socket.id);
     const code = generateCode();
-    // Лимит участников зависит от подписки: free — 5, plus — 15, max — 50
-    const planCap = me && me.subscription === 'max' ? 50 : (me && me.subscription === 'plus' ? 15 : 5);
+    // Лимит участников: сейчас всем 50 (при платном режиме — free 5, plus 15, max 50)
+    const planCap = OPEN_ALL ? 50 : (me && me.subscription === 'max' ? 50 : (me && me.subscription === 'plus' ? 15 : 5));
     const group = {
       code,
       name: (data.name || 'Без названия').slice(0, 60),
@@ -695,7 +720,7 @@ function leaveGroup(socket) {
 //  ЗАПУСК СЕРВЕРА
 // ============================================================================
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, '127.0.0.1', () => {
   console.log(`Сервер запущен: http://localhost:${PORT}`);
 });
