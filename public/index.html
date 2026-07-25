@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Verse Team</title>
+
+  <!-- Шрифт без засечек Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Иконки FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- ============ ВЕРХНЯЯ ПАНЕЛЬ (логотип + иконки) ============ -->
+    <header class="topbar">
+      <div class="logo">
+        <span class="logo-badge">V</span>
+        <span class="logo-text">erse Team</span>
+      </div>
+      <div class="top-actions">
+        <button class="icon-btn" id="open-settings" title="Настройки"><i class="fa-solid fa-gear"></i></button>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <!-- ============ ВКЛАДКА 1: ГОЛОСОВОЙ ЧАТ ============ -->
+      <section class="panel active" id="panel-voice">
+        <!-- Экран настройки фильтров -->
+        <div id="voice-setup">
+          <!-- Город собеседника (поиск по вводу) -->
+          <div class="card">
+            <div class="card-label">Город собеседника</div>
+            <div class="city-select">
+              <i class="fa-solid fa-location-dot city-icon"></i>
+              <input type="text" id="voice-city" class="city-input" placeholder="Начните вводить город" autocomplete="off" />
+              <div class="city-dropdown hidden" id="voice-city-list"></div>
+            </div>
+          </div>
+
+          <!-- Пол и возраст (множественный выбор) -->
+          <div class="card">
+            <div class="card-label">Пол собеседника</div>
+            <div class="chips" id="voice-gender" data-single-any="true">
+              <button class="chip active" data-value="any">Любой</button>
+              <button class="chip" data-value="female">Женский</button>
+              <button class="chip" data-value="male">Мужской</button>
+            </div>
+
+            <div class="card-label mt">Возраст собеседника</div>
+            <div class="chips" id="voice-age">
+              <button class="chip active" data-value="18-24">от 18 до 24 лет</button>
+              <button class="chip" data-value="25-32">от 25 до 32 лет</button>
+              <button class="chip" data-value="33">старше 33 лет</button>
+            </div>
+          </div>
+          <p class="hint">Можно несколько</p>
+
+          <!-- Расширенные фильтры (премиум) -->
+          <div class="card prem-filter" data-premfilter="voice">
+            <div class="card-label prem-filter-head">
+              <span><i class="fa-solid fa-crown"></i> Расширенные фильтры</span>
+              <span class="prem-filter-lock" title="Только для Premium"><i class="fa-solid fa-lock"></i></span>
+            </div>
+            <div class="prem-filter-body">
+              <div class="sub-label">Интересы собеседника</div>
+              <div class="chips-wrap" id="voice-fint"></div>
+              <div class="sub-label mt">Знак зодиака</div>
+              <select id="voice-fzodiac" class="s-input"></select>
+            </div>
+          </div>
+
+          <button class="btn btn-primary btn-big" id="voice-start">
+            <i class="fa-solid fa-phone"></i> Начать разговор
+          </button>
+
+          <p class="online">
+            <i class="fa-solid fa-circle online-dot"></i>
+            <span id="voice-online">—</span>
+          </p>
+        </div>
+
+        <!-- Экран поиска собеседника -->
+        <div class="call-screen hidden" id="voice-searching">
+          <div class="call-timer" id="voice-search-timer">00:00</div>
+          <div class="search-visual voice">
+            <div class="search-ring"></div>
+            <i class="fa-solid fa-microphone"></i>
+          </div>
+          <h3 class="call-title">Поиск собеседника…</h3>
+          <p class="peer-info" id="voice-search-info"></p>
+          <button class="btn btn-ghost btn-big call-bottom-btn" id="voice-cancel">Отменить</button>
+        </div>
+
+        <!-- Экран активного разговора -->
+        <div class="call-screen hidden" id="voice-call">
+          <div class="call-top-actions">
+            <button class="icon-btn call-icon" data-report title="Пожаловаться"><i class="fa-solid fa-gavel"></i></button>
+            <button class="icon-btn call-icon" data-rules title="Правила"><i class="fa-solid fa-circle-exclamation"></i></button>
+          </div>
+          <div class="call-timer" id="voice-timer">00:00</div>
+          <div class="call-visual">
+            <div class="call-pulse"></div>
+            <i class="fa-solid fa-phone"></i>
+          </div>
+          <h3 class="call-title" id="voice-peer-name">Собеседник</h3>
+          <p class="peer-info" id="voice-peer-info"></p>
+          <div class="call-controls">
+            <button class="round-btn" id="voice-mute" title="Микрофон"><i class="fa-solid fa-microphone"></i></button>
+            <button class="round-btn round-btn-end" id="voice-end" title="Завершить"><i class="fa-solid fa-phone-slash"></i></button>
+            <button class="round-btn" id="voice-speaker" title="Динамик"><i class="fa-solid fa-volume-high"></i></button>
+          </div>
+          <audio id="voice-audio" autoplay></audio>
+        </div>
+
+        <!-- Экран завершения разговора -->
+        <div class="call-screen ended hidden" id="voice-ended">
+          <div class="ended-icon"><i class="fa-solid fa-phone-slash"></i></div>
+          <h3 class="call-title" id="voice-ended-msg">Вы завершили диалог</h3>
+          <button class="btn btn-primary btn-big" data-restart="voice">Начать разговор</button>
+          <button class="btn btn-ghost btn-big" data-change="voice">Изменить параметры</button>
+        </div>
+      </section>
+
+      <!-- ============ ВКЛАДКА 2: ГРУППОВОЙ ЧАТ ============ -->
+      <section class="panel" id="panel-group">
+        <div id="group-home">
+          <!-- Карточка 1: Создать группу (групповой голосовой звонок) -->
+          <div class="card action-card">
+            <div class="action-title">
+              <i class="fa-solid fa-plus"></i> Создать группу
+              <span class="card-badge voice"><i class="fa-solid fa-microphone"></i> Голосовой</span>
+            </div>
+            <p class="action-desc">Групповой голосовой звонок. Создайте комнату и пригласите друзей по коду.</p>
+            <button class="btn btn-green" data-group="create">
+              <i class="fa-solid fa-plus"></i> Создать
+            </button>
+          </div>
+
+          <!-- Карточка 2: Присоединиться -->
+          <div class="card action-card">
+            <div class="action-title"><i class="fa-solid fa-key"></i> Присоединиться</div>
+            <p class="action-desc">Введите код группы от друга</p>
+            <button class="btn btn-grey" data-group="join">
+              Введите код
+            </button>
+          </div>
+
+          <!-- Карточка 3: Найти группу (групповой текстовый чат) -->
+          <div class="card action-card">
+            <div class="action-title">
+              <i class="fa-solid fa-magnifying-glass"></i> Найти группу
+              <span class="card-badge text"><i class="fa-regular fa-comment"></i> Текстовый</span>
+            </div>
+            <p class="action-desc">Групповой текстовый чат. Присоединитесь к открытой комнате.</p>
+            <button class="btn btn-primary" data-group="find">
+              <i class="fa-solid fa-magnifying-glass"></i> Найти
+            </button>
+          </div>
+
+          <p class="online">
+            <i class="fa-solid fa-circle online-dot"></i>
+            <span id="group-online">—</span>
+          </p>
+        </div>
+
+        <!-- Форма «Создать группу» -->
+        <div class="card group-form hidden" id="group-create">
+          <button class="back" data-back><i class="fa-solid fa-arrow-left"></i> Назад</button>
+          <h2>Создать группу</h2>
+
+          <label class="field">
+            <span>Название группы</span>
+            <input type="text" id="grp-name" class="input" placeholder="Например: Вечерний созвон" />
+          </label>
+
+          <div class="field">
+            <span>Пол участников</span>
+            <div class="chips" id="grp-gender" data-single="true">
+              <button type="button" class="chip active" data-value="any">Любой</button>
+              <button type="button" class="chip" data-value="female">Женский</button>
+              <button type="button" class="chip" data-value="male">Мужской</button>
+            </div>
+          </div>
+
+          <div class="switch-field">
+            <span>Открыть для всех</span>
+            <label class="switch">
+              <input type="checkbox" id="grp-open" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Максимум участников: <b id="grp-max-val">4</b></span>
+            <input type="range" id="grp-max" min="1" max="8" value="4" class="range" />
+          </label>
+
+          <button class="btn btn-green" id="grp-create-btn">
+            <i class="fa-solid fa-check"></i> Создать
+          </button>
+
+          <div class="code-result hidden" id="grp-code-box">
+            <span class="code-result-label">Код группы (поделитесь им с друзьями):</span>
+            <div class="code-field">
+              <b id="grp-code">——————</b>
+              <button class="btn btn-ghost btn-sm" id="grp-copy" title="Копировать"><i class="fa-regular fa-copy"></i></button>
+            </div>
+          </div>
+
+          <button class="btn btn-primary hidden" id="grp-start-call">
+            <i class="fa-solid fa-phone"></i> Создать звонок
+          </button>
+        </div>
+
+        <!-- Форма «Присоединиться» -->
+        <div class="card group-form hidden" id="group-join">
+          <button class="back" data-back><i class="fa-solid fa-arrow-left"></i> Назад</button>
+          <h2>Присоединиться</h2>
+          <label class="field">
+            <span>Код группы (6 букв)</span>
+            <input type="text" id="join-code" class="input code-input" maxlength="6" placeholder="ABCDEF" />
+          </label>
+          <button class="btn btn-primary" id="join-btn">
+            <i class="fa-solid fa-right-to-bracket"></i> Присоединиться
+          </button>
+        </div>
+
+        <!-- Форма «Найти группу» -->
+        <div class="card group-form hidden" id="group-find">
+          <button class="back" data-back><i class="fa-solid fa-arrow-left"></i> Назад</button>
+          <h2>Найти группу</h2>
+          <label class="field">
+            <span>Число участников (фильтр)</span>
+            <select id="find-size" class="select">
+              <option value="">Любое</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+            </select>
+          </label>
+          <button class="btn btn-primary" id="find-btn">
+            <i class="fa-solid fa-magnifying-glass"></i> Найти
+          </button>
+        </div>
+
+        <!-- Групповая комната -->
+        <div class="card room hidden" id="group-room">
+          <div class="room-head">
+            <div>
+              <h3 id="room-name">Комната</h3>
+              <span class="room-code">Код: <b id="room-code"></b></span>
+            </div>
+            <div class="room-actions">
+              <button class="round-btn room-mic hidden" id="room-manage" title="Управление участниками"><i class="fa-solid fa-user-gear"></i></button>
+              <button class="round-btn room-mic" id="room-mute" title="Микрофон"><i class="fa-solid fa-microphone"></i></button>
+              <button class="btn btn-danger btn-sm" id="room-leave">
+                <i class="fa-solid fa-right-from-bracket"></i> Выйти
+              </button>
+            </div>
+          </div>
+          <div class="mic-hint" id="room-mic-hint">Микрофон включён — говорите</div>
+          <div class="participants" id="room-participants"></div>
+          <div class="chat">
+            <div class="messages" id="room-messages"></div>
+            <form class="msg-form" id="room-msg-form">
+              <input type="text" id="room-msg-input" class="input" placeholder="Сообщение группе…" autocomplete="off" />
+              <button class="btn btn-primary btn-sm" type="submit"><i class="fa-solid fa-paper-plane"></i></button>
+            </form>
+          </div>
+          <!-- Панель модерации (владелец) -->
+          <div class="moderate-panel hidden" id="moderate-panel"></div>
+        </div>
+      </section>
+
+      <!-- ============ ВКЛАДКА 3: ТЕКСТОВЫЙ ЧАТ ============ -->
+      <section class="panel" id="panel-text">
+        <div id="text-setup">
+          <div class="card">
+            <div class="card-label">Город собеседника</div>
+            <div class="city-select">
+              <i class="fa-solid fa-location-dot city-icon"></i>
+              <input type="text" id="text-city" class="city-input" placeholder="Начните вводить город" autocomplete="off" />
+              <div class="city-dropdown hidden" id="text-city-list"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-label">Пол собеседника</div>
+            <div class="chips" id="text-gender" data-single-any="true">
+              <button class="chip active" data-value="any">Любой</button>
+              <button class="chip" data-value="female">Женский</button>
+              <button class="chip" data-value="male">Мужской</button>
+            </div>
+
+            <div class="card-label mt">Возраст собеседника</div>
+            <div class="chips" id="text-age">
+              <button class="chip active" data-value="18-24">от 18 до 24 лет</button>
+              <button class="chip" data-value="25-32">от 25 до 32 лет</button>
+              <button class="chip" data-value="33">старше 33 лет</button>
+            </div>
+          </div>
+          <p class="hint">Можно несколько</p>
+
+          <!-- Расширенные фильтры (премиум) -->
+          <div class="card prem-filter" data-premfilter="text">
+            <div class="card-label prem-filter-head">
+              <span><i class="fa-solid fa-crown"></i> Расширенные фильтры</span>
+              <span class="prem-filter-lock" title="Только для Premium"><i class="fa-solid fa-lock"></i></span>
+            </div>
+            <div class="prem-filter-body">
+              <div class="sub-label">Интересы собеседника</div>
+              <div class="chips-wrap" id="text-fint"></div>
+              <div class="sub-label mt">Знак зодиака</div>
+              <select id="text-fzodiac" class="s-input"></select>
+            </div>
+          </div>
+
+          <button class="btn btn-primary btn-big" id="text-start">
+            <i class="fa-regular fa-comment-dots"></i> Начать диалог
+          </button>
+
+          <p class="online">
+            <i class="fa-solid fa-circle online-dot"></i>
+            <span id="text-online">—</span>
+          </p>
+        </div>
+
+        <!-- Экран поиска собеседника -->
+        <div class="call-screen hidden" id="text-searching">
+          <div class="call-timer" id="text-search-timer">00:00</div>
+          <div class="search-visual text">
+            <span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>
+            <i class="fa-regular fa-comment"></i>
+          </div>
+          <h3 class="call-title">Поиск собеседника…</h3>
+          <p class="peer-info" id="text-search-info"></p>
+          <button class="btn btn-ghost btn-big call-bottom-btn" id="text-cancel">Отменить</button>
+        </div>
+
+        <!-- Экран переписки -->
+        <div class="chat-active hidden" id="text-chat">
+          <div class="chat-head">
+            <button class="icon-btn" id="text-end" title="Назад"><i class="fa-solid fa-arrow-left"></i></button>
+            <div class="chat-head-info">
+              <h3 id="text-peer-name">Собеседник</h3>
+              <p class="peer-info" id="text-peer-info"></p>
+            </div>
+            <button class="icon-btn" data-report title="Пожаловаться"><i class="fa-solid fa-gavel"></i></button>
+            <button class="icon-btn" data-rules title="Правила"><i class="fa-solid fa-circle-exclamation"></i></button>
+          </div>
+          <div class="messages" id="text-messages">
+            <div class="chat-empty" id="text-empty">
+              <i class="fa-regular fa-comment"></i>
+              <span>Отправьте первое сообщение</span>
+            </div>
+          </div>
+          <form class="msg-form" id="text-msg-form">
+            <button type="button" class="btn-gift" id="text-gift-btn" title="Подарок"><i class="fa-solid fa-gift"></i></button>
+            <input type="text" id="text-msg-input" class="input" placeholder="Сообщение" autocomplete="off" />
+            <button class="btn-send" type="submit" title="Отправить"><i class="fa-regular fa-paper-plane"></i></button>
+          </form>
+        </div>
+
+        <!-- Экран завершения переписки -->
+        <div class="call-screen ended hidden" id="text-ended">
+          <div class="ended-icon"><i class="fa-regular fa-comment-dots"></i></div>
+          <h3 class="call-title" id="text-ended-msg">Вы завершили диалог</h3>
+          <button class="btn btn-primary btn-big" data-restart="text">Начать разговор</button>
+          <button class="btn btn-ghost btn-big" data-change="text">Изменить параметры</button>
+        </div>
+      </section>
+
+      <!-- ============ ВКЛАДКА 4: PREMIUM-ПОДПИСКА ============ -->
+      <section class="panel" id="panel-subs">
+        <div class="subs-title">
+          <h2 id="subs-heading">Premium</h2>
+          <p class="subs-sub">Выберите тариф — больше возможностей для общения</p>
+        </div>
+        <div class="subs-body" id="subs-cards"></div>
+      </section>
+    </main>
+
+    <!-- ============ НИЖНЯЯ НАВИГАЦИЯ ============ -->
+    <nav class="bottom-nav">
+      <button class="nav-tab active" data-tab="voice">
+        <span class="nav-icon"><i class="fa-solid fa-microphone"></i></span>
+        <span class="nav-label">Голосовой чат</span>
+      </button>
+      <button class="nav-tab" data-tab="group">
+        <span class="nav-icon"><i class="fa-solid fa-user-group"></i></span>
+        <span class="nav-label">Групповой чат</span>
+      </button>
+      <button class="nav-tab" data-tab="text">
+        <span class="nav-icon"><i class="fa-regular fa-comment"></i></span>
+        <span class="nav-label">Текстовый чат</span>
+      </button>
+      <button class="nav-tab nav-premium" data-tab="subs">
+        <span class="nav-icon">
+          <!-- Свой значок «искра» под премиум-тематику -->
+          <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+            <path d="M12 2c.45 4 2.55 6.1 6.5 6.5-3.95.4-6.05 2.5-6.5 6.5-.45-4-2.55-6.1-6.5-6.5C9.45 8.1 11.55 6 12 2z"/>
+            <path d="M18.5 13.5c.2 1.9 1.1 2.8 3 3-1.9.2-2.8 1.1-3 3-.2-1.9-1.1-2.8-3-3 1.9-.2 2.8-1.1 3-3z"/>
+          </svg>
+        </span>
+        <span class="nav-label">Premium</span>
+      </button>
+    </nav>
+
+    <div class="toast-wrap" id="toasts"></div>
+
+    <!-- ============ МОДАЛКА ПРЕДПРОСМОТРА СОБЕСЕДНИКА (премиум) ============ -->
+    <div class="modal-backdrop hidden" id="preview-modal">
+      <div class="modal-card">
+        <div class="preview-avatar" id="prev-avatar"><i class="fa-solid fa-user"></i></div>
+        <h3 class="modal-h center" id="prev-name">Собеседник</h3>
+        <p class="modal-sub center" id="prev-meta"></p>
+        <p class="preview-desc" id="prev-desc"></p>
+        <div class="preview-interests" id="prev-interests"></div>
+        <button class="btn btn-primary btn-big" id="prev-connect">Соединиться</button>
+        <button class="btn btn-ghost btn-big" id="prev-skip">Искать другого</button>
+      </div>
+    </div>
+
+    <!-- ============ ПАЛИТРА ПОДАРКОВ (премиум) ============ -->
+    <div class="modal-backdrop hidden" id="gift-modal">
+      <div class="modal-card sheet-card">
+        <button class="modal-x" data-close-modal="gift-modal"><i class="fa-solid fa-xmark"></i></button>
+        <h3 class="modal-h center">Отправить подарок</h3>
+        <div class="gift-grid" id="gift-grid"></div>
+      </div>
+    </div>
+
+    <!-- ============ МОДАЛКА «ПРАВИЛА» ============ -->
+    <div class="modal-backdrop hidden" id="rules-modal">
+      <div class="modal-card">
+        <h3 class="modal-h">Запрещено</h3>
+        <ul class="modal-list">
+          <li>Никакой наготы или сексуального контента.</li>
+          <li>Никаких преследований, угроз или травли.</li>
+          <li>Никакой ненависти, экстремизма или дискриминации.</li>
+          <li>Никакого спама, рекламы, мошенничества или саморекламы.</li>
+        </ul>
+        <h3 class="modal-h">Как сохранить безопасность</h3>
+        <ul class="modal-list">
+          <li>Будьте уважительны — с другой стороны экрана тоже человек.</li>
+          <li>Используйте кнопки Блок и Жалоба в любой момент. AI-модерация следит за нарушениями, а команда проверяет жалобы вручную.</li>
+          <li>После отправки жалобы текущий чат сразу завершается для всех участников.</li>
+        </ul>
+        <button class="btn btn-light btn-big" data-close-modal="rules-modal">Закрыть</button>
+      </div>
+    </div>
+
+    <!-- ============ МОДАЛКА «ПОЖАЛОВАТЬСЯ ИЛИ ЗАБЛОКИРОВАТЬ» ============ -->
+    <div class="modal-backdrop hidden" id="report-modal">
+      <div class="modal-card sheet-card">
+        <button class="modal-x" data-close-modal="report-modal"><i class="fa-solid fa-xmark"></i></button>
+        <h3 class="modal-h center">Пожаловаться или заблокировать</h3>
+        <p class="modal-sub">Выберите действие для этого пользователя.</p>
+        <button class="action-option danger" id="do-report">
+          <span class="option-icon report"><i class="fa-solid fa-flag"></i></span>
+          <span class="option-texts">
+            <b>Пожаловаться</b>
+            <small>Отправить жалобу с указанием причины. Чат будет закрыт.</small>
+          </span>
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+        <button class="action-option" id="do-block">
+          <span class="option-icon block"><i class="fa-solid fa-ban"></i></span>
+          <span class="option-texts">
+            <b>Заблокировать</b>
+            <small>Заблокировать этого пользователя. Вы больше не будете подобраны вместе.</small>
+          </span>
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+        <button class="btn btn-light btn-big" data-close-modal="report-modal">Отменить</button>
+      </div>
+    </div>
+
+    <!-- ============ ОВЕРЛЕЙ «НАСТРОЙКИ» ============ -->
+    <div class="settings-overlay hidden" id="settings">
+
+      <!-- Экран: Настройки (главный список) -->
+      <div class="settings-view active" id="sv-main">
+        <div class="settings-head">
+          <button class="s-back" data-close-settings><i class="fa-solid fa-arrow-left"></i></button>
+          <h2>Настройки</h2>
+        </div>
+        <div class="settings-body">
+          <button class="s-row" data-open="profile">
+            <span>Профиль</span><i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <button class="s-row" id="s-premium">
+            <span><i class="fa-solid fa-crown s-premium-icon"></i> Premium-подписка</span>
+            <span class="s-plan-badge" id="s-plan-badge">Бесплатный</span>
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <button class="s-row" data-open="premfeatures">
+            <span><i class="fa-solid fa-wand-magic-sparkles s-premium-icon"></i> Премиум-функции</span>
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <button class="s-row" id="s-history">
+            <span><i class="fa-solid fa-clock-rotate-left s-premium-icon"></i> История переписки</span>
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <button class="s-row" data-open="language">
+            <span class="s-row-flag"></span><span>Русский <span class="s-muted">(Russia)</span></span>
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <div class="s-row s-row-static">
+            <span>Автоматически принимать матч</span>
+            <label class="switch">
+              <input type="checkbox" id="set-autoaccept" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <button class="s-row s-row-col" data-open-theme>
+            <div class="s-row-texts"><span>Тема</span><small id="theme-current">Тёмная</small></div>
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <button class="s-row" data-open="sound">
+            <span>Звук и вибрация</span><i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <button class="s-row" data-open="faq">
+            <span>Частые вопросы</span><i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <button class="s-row s-row-col" id="s-support">
+            <div class="s-row-texts">
+              <span><i class="fa-regular fa-comment-dots s-support-icon"></i> Связаться с поддержкой</span>
+              <small>Нажмите, чтобы отправить сообщение</small>
+            </div>
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <button class="s-row" id="s-terms">
+            <span>Условия использования</span><i class="fa-solid fa-arrow-up-right-from-square"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Экран: Профиль -->
+      <div class="settings-view" id="sv-profile">
+        <div class="settings-head">
+          <button class="s-back" data-back-settings><i class="fa-solid fa-arrow-left"></i></button>
+          <h2>Профиль</h2>
+          <button class="s-edit" id="profile-edit" title="Редактировать"><i class="fa-solid fa-pen"></i></button>
+        </div>
+        <div class="settings-body">
+          <label class="s-field">
+            <span class="s-field-label">Введите никнейм</span>
+            <input type="text" id="pf-nick" class="s-input" placeholder="Ваш ник" maxlength="20" />
+          </label>
+          <label class="s-field">
+            <span class="s-field-label">Ваш пол</span>
+            <select id="pf-gender" class="s-input">
+              <option value="male">Мужчина</option>
+              <option value="female">Женщина</option>
+            </select>
+          </label>
+          <label class="s-field">
+            <span class="s-field-label">Ваш город</span>
+            <div class="city-select">
+              <i class="fa-solid fa-location-dot city-icon"></i>
+              <input type="text" id="pf-city" class="city-input" placeholder="Начните вводить город" autocomplete="off" />
+              <div class="city-dropdown hidden" id="pf-city-list"></div>
+            </div>
+          </label>
+          <label class="s-field">
+            <span class="s-field-label">Ваш возраст</span>
+            <input type="number" id="pf-age" class="s-input" min="18" max="99" placeholder="18" />
+          </label>
+          <p class="s-hint" id="pf-hint"></p>
+
+          <!-- Премиум-часть профиля -->
+          <div class="prem-badge-row">
+            <span class="prem-tag"><i class="fa-solid fa-crown"></i> Premium</span>
+            <span class="prem-tag-note" id="pf-prem-note">Доступно при подписке</span>
+          </div>
+          <div id="pf-premium">
+            <label class="s-field">
+              <span class="s-field-label">Аватар</span>
+              <div class="avatar-upload">
+                <div class="avatar-preview" id="pf-avatar-preview"><i class="fa-solid fa-user"></i></div>
+                <label class="btn btn-ghost btn-sm avatar-btn">
+                  <i class="fa-solid fa-image"></i> Загрузить
+                  <input type="file" id="pf-avatar" accept="image/*" hidden />
+                </label>
+              </div>
+            </label>
+            <label class="s-field">
+              <span class="s-field-label">О себе</span>
+              <textarea id="pf-desc" class="s-input" rows="3" maxlength="300" placeholder="Коротко о себе"></textarea>
+            </label>
+            <div class="s-field">
+              <span class="s-field-label">Интересы</span>
+              <div class="chips-wrap" id="pf-interests"></div>
+            </div>
+            <label class="s-field">
+              <span class="s-field-label">Знак зодиака</span>
+              <select id="pf-zodiac" class="s-input"></select>
+            </label>
+            <label class="s-field">
+              <span class="s-field-label">Профессия</span>
+              <input type="text" id="pf-profession" class="s-input" maxlength="40" placeholder="Например: дизайнер" />
+            </label>
+            <label class="s-field">
+              <span class="s-field-label">Рост, см</span>
+              <input type="number" id="pf-height" class="s-input" min="120" max="230" placeholder="175" />
+            </label>
+          </div>
+
+          <button class="btn btn-outline-danger" id="pf-delete">Удалить профиль</button>
+        </div>
+      </div>
+
+      <!-- Экран: Язык -->
+      <div class="settings-view" id="sv-language">
+        <div class="settings-head">
+          <button class="s-back" data-back-settings><i class="fa-solid fa-arrow-left"></i></button>
+          <h2>Язык</h2>
+        </div>
+        <div class="settings-body">
+          <div class="s-row s-row-static s-selected">
+            <span class="s-row-flag"></span><span>Русский <span class="s-muted">(Russia)</span></span>
+            <i class="fa-solid fa-check s-check"></i>
+          </div>
+          <div class="s-row s-row-static s-disabled">
+            <span>English <span class="s-muted">(скоро)</span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Экран: Звук и вибрация -->
+      <div class="settings-view" id="sv-sound">
+        <div class="settings-head">
+          <button class="s-back" data-back-settings><i class="fa-solid fa-arrow-left"></i></button>
+          <h2>Звук и вибрация</h2>
+        </div>
+        <div class="settings-body" id="sound-groups"></div>
+      </div>
+
+      <!-- Экран: Частые вопросы -->
+      <div class="settings-view" id="sv-faq">
+        <div class="settings-head">
+          <button class="s-back" data-back-settings><i class="fa-solid fa-arrow-left"></i></button>
+          <h2>Частые вопросы</h2>
+        </div>
+        <div class="settings-body" id="faq-list"></div>
+      </div>
+
+      <!-- Экран: Премиум-функции -->
+      <div class="settings-view" id="sv-premfeatures">
+        <div class="settings-head">
+          <button class="s-back" data-back-settings><i class="fa-solid fa-arrow-left"></i></button>
+          <h2>Премиум-функции</h2>
+        </div>
+        <div class="settings-body">
+          <!-- Плашка для бесплатного тарифа -->
+          <div class="prem-locked hidden" id="prem-locked">
+            <i class="fa-solid fa-lock"></i>
+            <div>
+              <b>Доступно в Premium</b>
+              <p>Подключите тариф «Плюс» или «Максимум», чтобы пользоваться этими функциями.</p>
+            </div>
+            <button class="btn btn-primary btn-sm" id="prem-go">Открыть тарифы</button>
+          </div>
+
+          <!-- Обёртка функций (блокируется при free) -->
+          <div id="prem-controls">
+            <!-- Тема оформления -->
+            <div class="card">
+              <div class="card-label">Тема оформления</div>
+              <div class="scheme-grid" id="scheme-grid">
+                <button class="scheme" data-scheme="default"><span class="sw sw-default"></span>Классика</button>
+                <button class="scheme" data-scheme="space"><span class="sw sw-space"></span>Космос</button>
+                <button class="scheme" data-scheme="sea"><span class="sw sw-sea"></span>Морской</button>
+              </div>
+            </div>
+
+            <!-- Невидимка -->
+            <div class="s-row s-row-static">
+              <div class="s-row-texts">
+                <span>Режим «Невидимка»</span>
+                <small>Скрывает ваш онлайн-статус от других</small>
+              </div>
+              <label class="switch"><input type="checkbox" id="prem-invisible" /><span class="slider"></span></label>
+            </div>
+
+            <!-- Голосовой эффект -->
+            <div class="card">
+              <div class="card-label">Голосовой эффект</div>
+              <div class="chips" id="prem-voicefx" data-single="true">
+                <button type="button" class="chip active" data-value="none">Обычный</button>
+                <button type="button" class="chip" data-value="robot">Робот</button>
+                <button type="button" class="chip" data-value="low">Низкий тембр</button>
+                <button type="button" class="chip" data-value="high">Высокий тембр</button>
+              </div>
+              <p class="prem-note">Меняет ваш голос для собеседника в голосовом чате.</p>
+            </div>
+
+            <!-- Просмотр профиля до соединения -->
+            <div class="s-row s-row-static">
+              <div class="s-row-texts">
+                <span>Профиль собеседника до соединения</span>
+                <small>Показывать карточку перед началом разговора</small>
+              </div>
+              <label class="switch"><input type="checkbox" id="prem-preview" /><span class="slider"></span></label>
+            </div>
+
+            <!-- Запись своего разговора -->
+            <div class="s-row s-row-static">
+              <div class="s-row-texts">
+                <span>Запись своего разговора</span>
+                <small>Сохранять аудио своей стороны в файл</small>
+              </div>
+              <label class="switch"><input type="checkbox" id="prem-record" /><span class="slider"></span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Экран: История переписки (премиум) -->
+      <div class="settings-view" id="sv-history">
+        <div class="settings-head">
+          <button class="s-back" data-back-settings><i class="fa-solid fa-arrow-left"></i></button>
+          <h2>История переписки</h2>
+        </div>
+        <div class="settings-body">
+          <div class="prem-locked hidden" id="hist-locked">
+            <i class="fa-solid fa-lock"></i>
+            <div><b>Доступно в Premium</b><p>История переписки хранится на тарифах «Плюс» (7 дней) и «Максимум» (полная).</p></div>
+            <button class="btn btn-primary btn-sm" id="hist-go">Открыть тарифы</button>
+          </div>
+          <div id="hist-controls" class="hidden">
+            <div class="hist-actions">
+              <button class="btn btn-ghost btn-sm" id="hist-export-txt"><i class="fa-solid fa-file-lines"></i> Экспорт .txt</button>
+              <button class="btn btn-ghost btn-sm" id="hist-export-pdf"><i class="fa-solid fa-file-pdf"></i> Экспорт .pdf</button>
+            </div>
+            <div class="hist-list" id="hist-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Экран: Условия использования (открывается из настроек) -->
+      <div class="settings-view" id="sv-terms">
+        <div class="settings-head">
+          <button class="s-back" data-back-settings><i class="fa-solid fa-arrow-left"></i></button>
+          <h2>Условия</h2>
+        </div>
+        <div class="settings-body terms" id="terms-body"></div>
+      </div>
+
+      <!-- Модальное окно снизу: выбор темы -->
+      <div class="sheet-backdrop hidden" id="theme-sheet">
+        <div class="sheet">
+          <div class="sheet-grabber"></div>
+          <h3>Тема</h3>
+          <label class="sheet-option"><input type="radio" name="theme" value="light" /> <span>Светлая</span></label>
+          <label class="sheet-option"><input type="radio" name="theme" value="dark" checked /> <span>Тёмная</span></label>
+          <label class="sheet-option"><input type="radio" name="theme" value="system" /> <span>Как на устройстве</span></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ СТАРТОВЫЙ ЭКРАН ПРИНЯТИЯ УСЛОВИЙ ============ -->
+    <div class="welcome hidden" id="welcome">
+      <div class="welcome-inner">
+        <div class="logo welcome-logo">
+          <span class="logo-badge">V</span>
+          <span class="logo-text">erse Team</span>
+        </div>
+        <p class="welcome-sub">Голосовой, групповой и текстовый чат для новых знакомств</p>
+        <div class="welcome-note">
+          Сервис предназначен только для лиц старше 18 лет.
+        </div>
+        <p class="welcome-terms">
+          Нажимая «Продолжить», вы соглашаетесь с
+          <a href="#" id="welcome-terms-link">Пользовательским соглашением</a>
+          и Политикой конфиденциальности.
+        </p>
+        <button class="btn btn-primary btn-big" id="welcome-continue">Продолжить</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

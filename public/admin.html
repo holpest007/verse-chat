@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verse Team — Админ-панель</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <style>
+    :root{
+      --bg:#0b0b0f; --card:#141419; --card2:#1c1c23; --indigo:#4f57d6; --green:#13ba82;
+      --danger:#e0524a; --gold:#f5c451; --text:#f2f2f5; --muted:#7f8394; --border:#24242c;
+    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{margin:0;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text)}
+    a{color:var(--indigo)}
+
+    /* --- Экран входа --- */
+    .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .login-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:32px;width:100%;max-width:380px}
+    .login-card h1{margin:0 0 6px;font-size:22px}
+    .login-card p{color:var(--muted);margin:0 0 22px;font-size:14px}
+    .field{margin-bottom:14px}
+    .field label{display:block;color:var(--muted);font-size:13px;margin-bottom:6px}
+    .input{width:100%;padding:13px 15px;background:var(--card2);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:15px;font-family:inherit;outline:none}
+    .input:focus{border-color:var(--indigo)}
+    .btn{border:none;border-radius:12px;padding:13px 18px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:.15s}
+    .btn-primary{background:var(--indigo);color:#fff;width:100%}
+    .btn-primary:hover{background:#5b64ea}
+    .btn-danger{background:var(--danger);color:#fff}
+    .btn-ok{background:var(--green);color:#fff}
+    .btn-sm{padding:8px 12px;font-size:13px;border-radius:9px}
+    .btn-ghost{background:var(--card2);color:var(--text);border:1px solid var(--border)}
+    .err{color:var(--danger);font-size:13px;margin-top:8px;min-height:16px}
+
+    /* --- Каркас панели --- */
+    .layout{display:none;min-height:100vh}
+    .topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:10}
+    .brand{font-weight:800;font-size:18px}
+    .brand i{color:var(--gold)}
+    .who{color:var(--muted);font-size:13px;margin-right:10px}
+    .tabs{display:flex;gap:6px;padding:12px 20px;flex-wrap:wrap;border-bottom:1px solid var(--border);position:sticky;top:57px;background:var(--bg);z-index:9}
+    .tab{background:var(--card2);border:1px solid var(--border);color:var(--muted);border-radius:10px;padding:9px 14px;cursor:pointer;font-size:14px;font-weight:600;font-family:inherit}
+    .tab.active{background:var(--indigo);color:#fff;border-color:var(--indigo)}
+    .main{padding:20px;max-width:1100px;margin:0 auto}
+    .view{display:none}
+    .view.active{display:block}
+    h2.section{font-size:20px;margin:0 0 16px}
+
+    /* --- Карточки статистики --- */
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:24px}
+    .stat{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px}
+    .stat .n{font-size:28px;font-weight:800}
+    .stat .l{color:var(--muted);font-size:13px;margin-top:4px}
+    .stat.indigo .n{color:var(--indigo)} .stat.green .n{color:var(--green)}
+    .stat.gold .n{color:var(--gold)} .stat.danger .n{color:var(--danger)}
+
+    /* --- Таблицы --- */
+    .table-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:16px}
+    table{width:100%;border-collapse:collapse;font-size:14px;min-width:600px}
+    th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
+    th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+    tr:last-child td{border-bottom:none}
+    .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:600}
+    .b-free{background:var(--card2);color:var(--muted)}
+    .b-plus{background:rgba(79,87,214,.18);color:var(--indigo)}
+    .b-max{background:rgba(245,196,81,.18);color:var(--gold)}
+    .b-user{background:var(--card2);color:var(--muted)}
+    .b-admin{background:rgba(79,87,214,.18);color:var(--indigo)}
+    .b-superAdmin{background:rgba(245,196,81,.18);color:var(--gold)}
+    .b-ban{background:rgba(224,82,74,.18);color:var(--danger)}
+    .b-ok{background:rgba(19,186,130,.16);color:var(--green)}
+    .muted{color:var(--muted)}
+    .empty{padding:30px;text-align:center;color:var(--muted)}
+
+    .assign{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px}
+    .assign .input{max-width:260px}
+    .assign select{padding:11px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit}
+    .note{color:var(--muted);font-size:13px;margin:0 0 16px}
+  </style>
+</head>
+<body>
+  <!-- ЭКРАН ВХОДА -->
+  <div class="login-wrap" id="login">
+    <div class="login-card">
+      <h1><i class="fa-solid fa-crown" style="color:#f5c451"></i> Админ-панель</h1>
+      <p>Verse Team — вход только для администраторов</p>
+      <div class="field">
+        <label>Логин</label>
+        <input class="input" id="login-user" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label>Пароль</label>
+        <input class="input" id="login-pass" type="password" autocomplete="current-password" />
+      </div>
+      <button class="btn btn-primary" id="login-btn">Войти</button>
+      <div class="err" id="login-err"></div>
+    </div>
+  </div>
+
+  <!-- ПАНЕЛЬ -->
+  <div class="layout" id="layout">
+    <div class="topbar">
+      <div class="brand"><i class="fa-solid fa-crown"></i> Verse Team · Админ</div>
+      <div>
+        <span class="who" id="who"></span>
+        <button class="btn btn-ghost btn-sm" id="logout">Выйти</button>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-view="dash">Дашборд</button>
+      <button class="tab" data-view="users">Пользователи</button>
+      <button class="tab" data-view="reports">Жалобы</button>
+      <button class="tab" data-view="admins">Администраторы</button>
+      <button class="tab" data-view="logs">Логи</button>
+    </div>
+    <div class="main">
+      <!-- Дашборд -->
+      <div class="view active" id="v-dash">
+        <h2 class="section">Общая статистика</h2>
+        <div class="stats" id="stats"></div>
+        <h2 class="section">Подписки</h2>
+        <div class="stats" id="sub-stats"></div>
+      </div>
+      <!-- Пользователи -->
+      <div class="view" id="v-users">
+        <h2 class="section">Пользователи</h2>
+        <div class="table-wrap"><table id="users-table"></table></div>
+      </div>
+      <!-- Жалобы -->
+      <div class="view" id="v-reports">
+        <h2 class="section">Жалобы</h2>
+        <div class="table-wrap"><table id="reports-table"></table></div>
+      </div>
+      <!-- Администраторы -->
+      <div class="view" id="v-admins">
+        <h2 class="section">Администраторы</h2>
+        <p class="note">Назначьте роль пользователю по его ID или нику (доступно только главному администратору).</p>
+        <div class="assign" id="assign-box">
+          <input class="input" id="assign-query" placeholder="ID или ник пользователя" />
+          <select id="assign-role">
+            <option value="admin">Администратор</option>
+            <option value="superAdmin">Главный администратор</option>
+            <option value="user">Снять роль (обычный)</option>
+          </select>
+          <button class="btn btn-primary btn-sm" id="assign-btn">Применить</button>
+        </div>
+        <div class="table-wrap"><table id="admins-table"></table></div>
+      </div>
+      <!-- Логи -->
+      <div class="view" id="v-logs">
+        <h2 class="section">Журнал действий администраторов</h2>
+        <div class="table-wrap" style="margin-bottom:24px"><table id="adminlogs-table"></table></div>
+        <h2 class="section">Активность пользователей</h2>
+        <div class="table-wrap"><table id="activity-table"></table></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Состояние ---
+    let token = localStorage.getItem('vt_admin_token') || '';
+    let role = localStorage.getItem('vt_admin_role') || '';
+    let loginName = localStorage.getItem('vt_admin_login') || '';
+
+    // Обёртка над fetch с «пропуском» (JWT)
+    async function api(path, opts) {
+      opts = opts || {};
+      opts.headers = Object.assign({ 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, opts.headers || {});
+      const r = await fetch(path, opts);
+      if (r.status === 401) { doLogout(); throw new Error('unauth'); }
+      return r.json();
+    }
+    const fmtDate = (ms) => ms ? new Date(ms).toLocaleString('ru-RU') : '—';
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    // --- Вход ---
+    document.getElementById('login-btn').addEventListener('click', login);
+    document.getElementById('login-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
+    async function login() {
+      const login = document.getElementById('login-user').value.trim();
+      const password = document.getElementById('login-pass').value;
+      const errEl = document.getElementById('login-err');
+      errEl.textContent = '';
+      try {
+        const r = await fetch('/admin/api/login', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ login, password }),
+        }).then((x) => x.json());
+        if (r.ok) {
+          token = r.token; role = r.role; loginName = r.login;
+          localStorage.setItem('vt_admin_token', token);
+          localStorage.setItem('vt_admin_role', role);
+          localStorage.setItem('vt_admin_login', loginName);
+          showPanel();
+        } else {
+          errEl.textContent = r.error || 'Ошибка входа';
+        }
+      } catch (e) { errEl.textContent = 'Ошибка соединения'; }
+    }
+    function doLogout() {
+      token = ''; localStorage.removeItem('vt_admin_token');
+      document.getElementById('layout').style.display = 'none';
+      document.getElementById('login').style.display = 'flex';
+    }
+    document.getElementById('logout').addEventListener('click', doLogout);
+
+    // --- Навигация по вкладкам ---
+    document.querySelectorAll('.tab').forEach((t) => {
+      t.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
+        document.querySelectorAll('.view').forEach((x) => x.classList.remove('active'));
+        t.classList.add('active');
+        document.getElementById('v-' + t.dataset.view).classList.add('active');
+        loadView(t.dataset.view);
+      });
+    });
+
+    function showPanel() {
+      document.getElementById('login').style.display = 'none';
+      document.getElementById('layout').style.display = 'block';
+      document.getElementById('who').textContent = loginName + ' · ' + role;
+      // Раздел «Администраторы»: форма назначения только для главного админа
+      document.getElementById('assign-box').style.display = role === 'superAdmin' ? 'flex' : 'none';
+      loadView('dash');
+    }
+
+    async function loadView(view) {
+      if (view === 'dash') return loadDash();
+      if (view === 'users') return loadUsers();
+      if (view === 'reports') return loadReports();
+      if (view === 'admins') return loadAdmins();
+      if (view === 'logs') return loadLogs();
+    }
+
+    // --- Дашборд ---
+    async function loadDash() {
+      const s = await api('/admin/api/stats');
+      document.getElementById('stats').innerHTML =
+        stat('indigo', s.total, 'Всего пользователей') +
+        stat('green', s.online, 'Онлайн сейчас') +
+        stat('gold', (s.subs.plus + s.subs.max), 'С подпиской') +
+        stat('danger', s.openReports, 'Открытых жалоб');
+      document.getElementById('sub-stats').innerHTML =
+        stat('', s.subs.free, 'Бесплатный') +
+        stat('indigo', s.subs.plus, 'Плюс (199 ₽)') +
+        stat('gold', s.subs.max, 'Максимум (399 ₽)') +
+        stat('green', s.revenue + ' ₽', 'Доход в месяц');
+    }
+    const stat = (cls, n, l) => `<div class="stat ${cls}"><div class="n">${esc(n)}</div><div class="l">${esc(l)}</div></div>`;
+
+    // --- Пользователи ---
+    async function loadUsers() {
+      const users = await api('/admin/api/users');
+      const rows = users.map((u) => `
+        <tr>
+          <td class="muted">${esc(u.id).slice(0, 10)}…</td>
+          <td>${esc(u.nick) || '<span class="muted">—</span>'}</td>
+          <td>${u.gender === 'female' ? 'Ж' : 'М'}</td>
+          <td>${esc(u.age)}</td>
+          <td>${esc(u.city)}</td>
+          <td><span class="badge b-${u.subscription}">${planName(u.subscription)}</span></td>
+          <td><span class="badge b-${u.role}">${roleName(u.role)}</span></td>
+          <td>${u.isBanned ? '<span class="badge b-ban">Забанен</span>' : '<span class="badge b-ok">Активен</span>'}</td>
+          <td>${fmtDate(u.createdAt)}</td>
+          <td>${u.isBanned
+            ? `<button class="btn btn-ok btn-sm" onclick="ban('${u.id}',false)">Разбанить</button>`
+            : `<button class="btn btn-danger btn-sm" onclick="ban('${u.id}',true)">Забанить</button>`}</td>
+        </tr>`).join('');
+      document.getElementById('users-table').innerHTML =
+        `<thead><tr><th>ID</th><th>Ник</th><th>Пол</th><th>Возраст</th><th>Город</th><th>Подписка</th><th>Роль</th><th>Статус</th><th>Регистрация</th><th></th></tr></thead>
+         <tbody>${rows || emptyRow(10)}</tbody>`;
+    }
+    async function ban(id, banned) {
+      await api('/admin/api/users/' + id + '/ban', { method: 'POST', body: JSON.stringify({ banned }) });
+      loadUsers();
+    }
+
+    // --- Жалобы ---
+    async function loadReports() {
+      const reports = await api('/admin/api/reports');
+      const rows = reports.map((r) => `
+        <tr>
+          <td class="muted">${esc(r.reporterId).slice(0, 10)}…</td>
+          <td class="muted">${esc(r.targetId).slice(0, 10)}…</td>
+          <td>${esc(r.reason) || '<span class="muted">без причины</span>'}</td>
+          <td>${fmtDate(r.createdAt)}</td>
+          <td>${r.handled ? '<span class="badge b-ok">Обработана</span>' : '<span class="badge b-ban">Открыта</span>'}</td>
+          <td>${r.handled ? '' : `<button class="btn btn-ghost btn-sm" onclick="handleReport(${r.id})">Отметить</button>
+               <button class="btn btn-danger btn-sm" onclick="ban('${esc(r.targetId)}',true)">Забанить</button>`}</td>
+        </tr>`).join('');
+      document.getElementById('reports-table').innerHTML =
+        `<thead><tr><th>Кто</th><th>На кого</th><th>Причина</th><th>Дата</th><th>Статус</th><th></th></tr></thead>
+         <tbody>${rows || emptyRow(6)}</tbody>`;
+    }
+    async function handleReport(id) {
+      await api('/admin/api/reports/' + id + '/handle', { method: 'POST' });
+      loadReports();
+    }
+
+    // --- Администраторы ---
+    async function loadAdmins() {
+      const admins = await api('/admin/api/admins');
+      const rows = admins.map((u) => `
+        <tr>
+          <td class="muted">${esc(u.id).slice(0, 10)}…</td>
+          <td>${esc(u.nick) || '<span class="muted">—</span>'}</td>
+          <td><span class="badge b-${u.role}">${roleName(u.role)}</span></td>
+          <td>${role === 'superAdmin' && u.role !== 'superAdmin'
+            ? `<button class="btn btn-ghost btn-sm" onclick="setRole('${u.id}','user')">Снять</button>` : ''}</td>
+        </tr>`).join('');
+      document.getElementById('admins-table').innerHTML =
+        `<thead><tr><th>ID</th><th>Ник</th><th>Роль</th><th></th></tr></thead>
+         <tbody>${rows || emptyRow(4)}</tbody>`;
+    }
+    document.getElementById('assign-btn').addEventListener('click', async () => {
+      const query = document.getElementById('assign-query').value.trim();
+      const role2 = document.getElementById('assign-role').value;
+      if (!query) return;
+      const r = await api('/admin/api/admins', { method: 'POST', body: JSON.stringify({ query, role: role2 }) });
+      if (r.error) alert(r.error); else { document.getElementById('assign-query').value = ''; loadAdmins(); }
+    });
+    async function setRole(id, role2) {
+      await api('/admin/api/admins', { method: 'POST', body: JSON.stringify({ query: id, role: role2 }) });
+      loadAdmins();
+    }
+
+    // --- Логи ---
+    async function loadLogs() {
+      const { admin, activity } = await api('/admin/api/logs');
+      const aRows = admin.map((l) => `
+        <tr><td>${esc(l.adminId)}</td><td>${esc(l.action)}</td><td class="muted">${esc(l.targetId).slice(0, 12)}</td><td>${fmtDate(l.createdAt)}</td></tr>`).join('');
+      document.getElementById('adminlogs-table').innerHTML =
+        `<thead><tr><th>Админ</th><th>Действие</th><th>Над кем</th><th>Дата</th></tr></thead><tbody>${aRows || emptyRow(4)}</tbody>`;
+      const actRows = activity.map((l) => `
+        <tr><td class="muted">${esc(l.userId).slice(0, 12)}</td><td>${esc(actType(l.type))}</td><td>${esc(l.info)}</td><td>${fmtDate(l.createdAt)}</td></tr>`).join('');
+      document.getElementById('activity-table').innerHTML =
+        `<thead><tr><th>Пользователь</th><th>Событие</th><th>Данные</th><th>Дата</th></tr></thead><tbody>${actRows || emptyRow(4)}</tbody>`;
+    }
+
+    // --- Помощники ---
+    const planName = (p) => ({ free: 'Бесплатный', plus: 'Плюс', max: 'Максимум' }[p] || p);
+    const roleName = (r) => ({ user: 'Пользователь', admin: 'Администратор', superAdmin: 'Главный' }[r] || r);
+    const actType = (t) => ({ login: 'Вход', call: 'Разговор', group_create: 'Создал группу', subscription: 'Оплата подписки' }[t] || t);
+    const emptyRow = (cols) => `<tr><td colspan="${cols}" class="empty">Пока нет данных</td></tr>`;
+
+    // Автовход, если токен уже есть
+    if (token) showPanel();
+  </script>
+</body>
+</html>
