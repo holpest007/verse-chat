@@ -310,7 +310,14 @@ function createVoicePC(peerId) {
   // Исходящий звук может быть обработан голосовым эффектом (премиум)
   const out = getOutgoingStream();
   out.getAudioTracks().forEach((track) => pc.addTrack(track, out));
-  pc.ontrack = (e) => { $('#voice-audio').srcObject = e.streams[0]; };
+  pc.ontrack = (e) => {
+    const a = $('#voice-audio');
+    a.srcObject = e.streams[0];
+    a.muted = false;
+    a.playsInline = true;
+    // Явно запускаем воспроизведение — на iOS <audio autoplay> сам не играет
+    a.play().catch(() => {});
+  };
   pc.onicecandidate = (e) => {
     if (e.candidate) socket.emit('signal', { to: peerId, data: { candidate: e.candidate } });
   };
@@ -661,9 +668,12 @@ function createGroupPC(peerId) {
       audio = document.createElement('audio');
       audio.id = 'audio-' + peerId;
       audio.autoplay = true;
+      audio.playsInline = true;
       document.body.appendChild(audio);
     }
     audio.srcObject = e.streams[0];
+    audio.muted = false;
+    audio.play().catch(() => {}); // iOS: явный запуск воспроизведения
     // подсветка «говорит» для этого участника
     if (!document.getElementById('p-' + peerId)) addParticipantTile(peerId, 'Участник');
     setupVoiceActivity(e.streams[0], peerId);
