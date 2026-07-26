@@ -3,13 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="theme-color" content="#0b0b0f" />
   <title>Verse Team</title>
 
-  <!-- Иконки FontAwesome раздаём со СВОЕГО сервера (без внешних CDN,
-       чтобы сайт открывался в РФ без VPN). Шрифт — системный. -->
-  <link rel="stylesheet" href="/fa/css/all.min.css" />
-
+  <!-- Основные стили (свой сервер) -->
   <link rel="stylesheet" href="styles.css" />
+  <!-- Иконки FontAwesome — свой сервер, грузим асинхронно, чтобы не блокировать
+       отрисовку страницы на медленном канале. Всё локально, без внешних CDN. -->
+  <link rel="stylesheet" href="/fa/css/all.min.css" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="/fa/css/all.min.css" /></noscript>
 </head>
 <body>
   <div class="app">
