@@ -576,8 +576,8 @@ body {
 @keyframes floaty { 0%,100% { transform: translateY(0); opacity: 0.5; } 50% { transform: translateY(-10px); opacity: 1; } }
 
 /* Визуал активного звонка */
-/* Контейнер собеседников — центрированные равные круги (я + собеседник).
-   flex-wrap: на широком экране рядом, на узком — друг под другом. */
+/* Контейнер собеседников — центрированные равные КВАДРАТЫ (я + собеседник).
+   flex-wrap: если помещаются — рядом, иначе друг под другом. */
 .call-visual {
   position: relative;
   display: flex; flex-wrap: wrap;
@@ -586,27 +586,37 @@ body {
   width: 100%;
   margin-bottom: 40px;
 }
-/* Одна плитка (я / собеседник) — одинаковый большой круг */
+/* Одна плитка (я / собеседник) — квадрат с минимальным скруглением.
+   Базовый размер (планшет/промежуточные экраны). Переопределяется
+   медиа-запросами ниже: крупнее на десктопе, компактнее на телефоне. */
 .call-tile {
   position: relative;
   flex: 0 0 auto;
-  width: min(200px, 62vw);
-  height: min(200px, 62vw);
+  width: 240px;
+  height: 240px;
   display: flex; align-items: center; justify-content: center;
-  border-radius: 50%;
+  border-radius: 8px;
   background: var(--card-2);
   overflow: hidden;
 }
-/* Фоновая подложка круга собеседника */
+/* Десктоп: крупные квадраты */
+@media (min-width: 1025px) {
+  .call-tile { width: 340px; height: 340px; }
+}
+/* Мобильные: компактнее, но всё ещё заметные */
+@media (max-width: 767px) {
+  .call-tile { width: min(180px, 46vw); height: min(180px, 46vw); }
+}
+/* Фоновая подложка квадрата собеседника */
 .call-tile-remote::before {
   content: '';
   position: absolute; inset: 0;
-  border-radius: 50%;
+  border-radius: 8px;
   background: rgba(79, 87, 214, 0.12);
 }
-/* Иконка-заглушка пользователя (когда видео недоступно) */
+/* Иконка-заглушка пользователя (когда видео недоступно), по центру квадрата */
 .call-fallback {
-  font-size: clamp(44px, 20vw, 72px);
+  font-size: clamp(48px, 22vw, 108px);
   color: var(--text);
   opacity: 0.9;
   z-index: 2;
@@ -614,7 +624,7 @@ body {
 .call-pulse {
   position: absolute;
   width: 74%; height: 74%;
-  border-radius: 50%;
+  border-radius: 8px;
   border: 1px solid rgba(79, 87, 214, 0.6);
   background: rgba(79, 87, 214, 0.18);
   animation: pulse 2s ease-out infinite;
@@ -625,13 +635,13 @@ body {
   100% { transform: scale(1.25); opacity: 0; }
 }
 
-/* Видео заполняет круг плитки */
+/* Видео заполняет квадрат плитки целиком, без пустых полей */
 .call-video, .call-video-self {
   display: none;
   position: absolute; inset: 0;
   width: 100%; height: 100%;
   object-fit: cover;
-  border-radius: 50%;
+  border-radius: 8px;
   background: #000;
   z-index: 3;
 }
