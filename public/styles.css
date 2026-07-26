@@ -576,42 +576,49 @@ body {
 @keyframes floaty { 0%,100% { transform: translateY(0); opacity: 0.5; } 50% { transform: translateY(-10px); opacity: 1; } }
 
 /* Визуал активного звонка */
-/* Контейнер собеседников — центрированный ряд из равных круглых плиток */
+/* Контейнер собеседников — центрированные равные круги (я + собеседник).
+   flex-wrap: на широком экране рядом, на узком — друг под другом. */
 .call-visual {
   position: relative;
-  display: flex; align-items: center; justify-content: center;
-  gap: 18px;
+  display: flex; flex-wrap: wrap;
+  align-items: center; justify-content: center;
+  gap: 20px;
   width: 100%;
-  margin-bottom: 44px;
+  margin-bottom: 40px;
 }
-/* Одна плитка (я / собеседник) — одинаковый размер, идеальный круг */
+/* Одна плитка (я / собеседник) — одинаковый большой круг */
 .call-tile {
   position: relative;
   flex: 0 0 auto;
-  width: min(150px, 40vw);
-  height: min(150px, 40vw);
+  width: min(200px, 62vw);
+  height: min(200px, 62vw);
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%;
+  background: var(--card-2);
+  overflow: hidden;
 }
-/* Своя плитка появляется только при включённой камере */
-.call-tile-local { display: none; }
-#voice-visual.has-local .call-tile-local { display: flex; }
-
-/* Аудио-режим: фоновый круг + пульс + иконка у плитки собеседника */
+/* Фоновая подложка круга собеседника */
 .call-tile-remote::before {
   content: '';
   position: absolute; inset: 0;
   border-radius: 50%;
   background: rgba(79, 87, 214, 0.12);
 }
-.call-tile-remote > i.fa-phone { font-size: 52px; color: var(--text); z-index: 2; }
+/* Иконка-заглушка пользователя (когда видео недоступно) */
+.call-fallback {
+  font-size: clamp(44px, 20vw, 72px);
+  color: var(--text);
+  opacity: 0.9;
+  z-index: 2;
+}
 .call-pulse {
   position: absolute;
-  width: 70%; height: 70%;
+  width: 74%; height: 74%;
   border-radius: 50%;
   border: 1px solid rgba(79, 87, 214, 0.6);
   background: rgba(79, 87, 214, 0.18);
   animation: pulse 2s ease-out infinite;
+  z-index: 1;
 }
 @keyframes pulse {
   0% { transform: scale(0.9); opacity: 0.9; }
@@ -629,15 +636,32 @@ body {
   z-index: 3;
 }
 .call-video-self { transform: scaleX(-1); } /* своё видео — зеркально */
+
+/* Подпись под кругом («Вы» / имя собеседника) */
+.call-tile-label {
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  z-index: 4;
+  font-size: 12px; font-weight: 600; color: #fff;
+  padding: 2px 10px; border-radius: 10px;
+  background: rgba(0, 0, 0, 0.45);
+  white-space: nowrap; pointer-events: none;
+  max-width: 88%; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Переключение видео / заглушек */
 #voice-visual.has-remote .call-video { display: block; }
 #voice-visual.has-remote .call-tile-remote::before,
-#voice-visual.has-remote .call-tile-remote > i.fa-phone,
+#voice-visual.has-remote .call-tile-remote .call-fallback,
 #voice-visual.has-remote .call-pulse { display: none; }
 #voice-visual.has-local .call-video-self { display: block; }
+#voice-visual.has-local .call-tile-local .call-fallback { display: none; }
 
 /* Активная камера — подсвеченная кнопка */
 .round-btn.cam-on { background: #4f57d6; color: #fff; }
 .round-btn.cam-on:hover { background: #5a63e6; }
+/* Кнопка переворота: недоступна без камеры, подсветка в режиме тыловой */
+.round-btn:disabled { opacity: 0.4; cursor: default; }
+.round-btn.flip-rear { background: #4f57d6; color: #fff; }
 
 .call-title { font-size: 24px; font-weight: 700; margin: 0 0 10px; }
 .call-screen .peer-info {

@@ -104,15 +104,18 @@
           </div>
           <div class="call-timer" id="voice-timer">00:00</div>
           <div class="call-visual" id="voice-visual">
-            <!-- Плитка собеседника: видео или пульсирующая иконка (аудио-режим) -->
+            <!-- Плитка собеседника: видео или иконка пользователя (если видео нет) -->
             <div class="call-tile call-tile-remote">
               <div class="call-pulse"></div>
-              <i class="fa-solid fa-phone"></i>
+              <i class="call-fallback fa-solid fa-user"></i>
               <video id="voice-remote-video" class="call-video" autoplay playsinline></video>
+              <span class="call-tile-label" id="voice-remote-label">Собеседник</span>
             </div>
-            <!-- Своя плитка: видна только при включённой камере -->
+            <!-- Своя плитка: видео при включённой камере, иначе иконка пользователя -->
             <div class="call-tile call-tile-local" id="voice-local-tile">
+              <i class="call-fallback fa-solid fa-user"></i>
               <video id="voice-local-video" class="call-video-self" autoplay playsinline muted></video>
+              <span class="call-tile-label">Вы</span>
             </div>
           </div>
           <h3 class="call-title" id="voice-peer-name">Собеседник</h3>
@@ -122,6 +125,7 @@
             <button class="round-btn round-btn-end" id="voice-end" title="Завершить"><i class="fa-solid fa-phone-slash"></i></button>
             <button class="round-btn" id="voice-speaker" title="Динамик"><i class="fa-solid fa-volume-high"></i></button>
             <button class="round-btn" id="voice-cam" title="Камера"><i class="fa-solid fa-video-slash"></i></button>
+            <button class="round-btn" id="voice-flip" title="Перевернуть камеру" disabled><i class="fa-solid fa-camera-rotate"></i></button>
           </div>
           <audio id="voice-audio" autoplay playsinline></audio>
         </div>

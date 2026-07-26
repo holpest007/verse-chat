@@ -303,6 +303,7 @@ let voiceNeg = { polite: false, makingOffer: false, ignoreOffer: false };
 // Камера в звонке 1-на-1
 let voiceCamOn = false;
 let localVideoTrack = null;
+let facingMode = 'user'; // 'user' — фронтальная, 'environment' — тыловая
 
 async function getMic() {
   if (localStream) return localStream;
@@ -413,8 +414,9 @@ $('#voice-cam').addEventListener('click', async () => {
   btn.disabled = true;
   try {
     if (!voiceCamOn) {
+      facingMode = 'user'; // при включении всегда стартуем с фронтальной
       let vs;
-      try { vs = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }); }
+      try { vs = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facingMode } } }); }
       catch (e) { toast('Нет доступа к камере'); return; }
       localVideoTrack = vs.getVideoTracks()[0];
       if (localStream) localStream.addTrack(localVideoTrack);
@@ -438,6 +440,54 @@ function setCamBtn(on) {
   btn.innerHTML = on
     ? '<i class="fa-solid fa-video"></i>'
     : '<i class="fa-solid fa-video-slash"></i>';
+  // Кнопка переворота доступна только при включённой камере
+  const flip = $('#voice-flip');
+  flip.disabled = !on;
+  if (!on) { flip.classList.remove('flip-rear'); flip.title = 'Перевернуть камеру'; }
+}
+
+// Кнопка «Перевернуть камеру» — фронтальная ⇄ тыловая, без переустановки соединения
+$('#voice-flip').addEventListener('click', async () => {
+  if (!voiceCamOn || !voicePC) return;
+  const btn = $('#voice-flip');
+  btn.disabled = true;
+  const target = facingMode === 'user' ? 'environment' : 'user';
+  let vs;
+  try {
+    vs = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: target } } });
+  } catch (e) {
+    toast('Вторая камера недоступна');
+    btn.disabled = false;
+    return;
+  }
+  const newTrack = vs.getVideoTracks()[0];
+  // Заменяем видеодорожку прямо в отправителе — renegotiation не нужен
+  const sender = voicePC.getSenders().find((s) => s.track && s.track.kind === 'video');
+  try {
+    if (sender) await sender.replaceTrack(newTrack);
+  } catch (e) {
+    newTrack.stop();
+    toast('Не удалось переключить камеру');
+    btn.disabled = false;
+    return;
+  }
+  // Обновляем локальный поток и превью
+  if (localStream && localVideoTrack) { try { localStream.removeTrack(localVideoTrack); } catch (e) {} }
+  if (localVideoTrack) localVideoTrack.stop();
+  localVideoTrack = newTrack;
+  if (localStream) localStream.addTrack(newTrack);
+  showLocalVideo(newTrack);
+  facingMode = target;
+  setFlipBtn();
+  btn.disabled = false;
+  toast(facingMode === 'user' ? 'Фронтальная камера' : 'Тыловая камера');
+});
+
+function setFlipBtn() {
+  const flip = $('#voice-flip');
+  const rear = facingMode === 'environment';
+  flip.classList.toggle('flip-rear', rear);
+  flip.title = rear ? 'Камера: тыловая' : 'Камера: фронтальная';
 }
 
 function showLocalVideo(track) {
@@ -465,7 +515,8 @@ function stopLocalVideo() {
 function resetVoiceVideo() {
   stopLocalVideo();
   voiceCamOn = false;
-  setCamBtn(false);
+  facingMode = 'user';
+  setCamBtn(false); // заодно выключит и заблокирует кнопку переворота
   const rv = $('#voice-remote-video');
   if (rv) rv.srcObject = null;
   $('#voice-visual').classList.remove('has-remote', 'has-local');
@@ -506,6 +557,8 @@ async function proceedVoiceMatch({ peerId, initiator, partner }) {
   stopTimer('voiceSearch');
   $('#voice-peer-name').textContent = 'Разговор с ' + (partner.nick || 'собеседником');
   $('#voice-peer-info').innerHTML = peerInfoHTML(partner);
+  const rl = $('#voice-remote-label');
+  if (rl) rl.textContent = partner.nick || 'Собеседник';
   // сброс кнопок mute/speaker
   $('#voice-mute').classList.remove('muted');
   $('#voice-mute').innerHTML = '<i class="fa-solid fa-microphone"></i>';
