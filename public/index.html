@@ -104,10 +104,16 @@
           </div>
           <div class="call-timer" id="voice-timer">00:00</div>
           <div class="call-visual" id="voice-visual">
-            <div class="call-pulse"></div>
-            <i class="fa-solid fa-phone"></i>
-            <video id="voice-remote-video" class="call-video" autoplay playsinline></video>
-            <video id="voice-local-video" class="call-video-self" autoplay playsinline muted></video>
+            <!-- Плитка собеседника: видео или пульсирующая иконка (аудио-режим) -->
+            <div class="call-tile call-tile-remote">
+              <div class="call-pulse"></div>
+              <i class="fa-solid fa-phone"></i>
+              <video id="voice-remote-video" class="call-video" autoplay playsinline></video>
+            </div>
+            <!-- Своя плитка: видна только при включённой камере -->
+            <div class="call-tile call-tile-local" id="voice-local-tile">
+              <video id="voice-local-video" class="call-video-self" autoplay playsinline muted></video>
+            </div>
           </div>
           <h3 class="call-title" id="voice-peer-name">Собеседник</h3>
           <p class="peer-info" id="voice-peer-info"></p>

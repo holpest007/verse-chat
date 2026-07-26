@@ -576,22 +576,39 @@ body {
 @keyframes floaty { 0%,100% { transform: translateY(0); opacity: 0.5; } 50% { transform: translateY(-10px); opacity: 1; } }
 
 /* Визуал активного звонка */
+/* Контейнер собеседников — центрированный ряд из равных круглых плиток */
 .call-visual {
   position: relative;
-  width: 220px; height: 220px;
   display: flex; align-items: center; justify-content: center;
+  gap: 18px;
+  width: 100%;
   margin-bottom: 44px;
 }
-.call-visual > i { font-size: 58px; color: var(--text); z-index: 2; }
-.call-visual::before, .call-pulse {
+/* Одна плитка (я / собеседник) — одинаковый размер, идеальный круг */
+.call-tile {
+  position: relative;
+  flex: 0 0 auto;
+  width: min(150px, 40vw);
+  height: min(150px, 40vw);
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+}
+/* Своя плитка появляется только при включённой камере */
+.call-tile-local { display: none; }
+#voice-visual.has-local .call-tile-local { display: flex; }
+
+/* Аудио-режим: фоновый круг + пульс + иконка у плитки собеседника */
+.call-tile-remote::before {
   content: '';
-  position: absolute;
+  position: absolute; inset: 0;
   border-radius: 50%;
   background: rgba(79, 87, 214, 0.12);
 }
-.call-visual::before { width: 220px; height: 220px; }
+.call-tile-remote > i.fa-phone { font-size: 52px; color: var(--text); z-index: 2; }
 .call-pulse {
-  width: 150px; height: 150px;
+  position: absolute;
+  width: 70%; height: 70%;
+  border-radius: 50%;
   border: 1px solid rgba(79, 87, 214, 0.6);
   background: rgba(79, 87, 214, 0.18);
   animation: pulse 2s ease-out infinite;
@@ -601,8 +618,8 @@ body {
   100% { transform: scale(1.25); opacity: 0; }
 }
 
-/* Видео собеседника — заполняет круглый аватар звонка */
-.call-video {
+/* Видео заполняет круг плитки */
+.call-video, .call-video-self {
   display: none;
   position: absolute; inset: 0;
   width: 100%; height: 100%;
@@ -611,23 +628,11 @@ body {
   background: #000;
   z-index: 3;
 }
+.call-video-self { transform: scaleX(-1); } /* своё видео — зеркально */
 #voice-visual.has-remote .call-video { display: block; }
-#voice-visual.has-remote .call-pulse,
-#voice-visual.has-remote > i.fa-phone { display: none; }
-
-/* Своё превью — маленькое окошко в углу, зеркальное */
-.call-video-self {
-  display: none;
-  position: absolute;
-  width: 76px; height: 76px;
-  right: -6px; bottom: -6px;
-  object-fit: cover;
-  border-radius: 14px;
-  background: #000;
-  border: 2px solid var(--card-2);
-  transform: scaleX(-1);
-  z-index: 5;
-}
+#voice-visual.has-remote .call-tile-remote::before,
+#voice-visual.has-remote .call-tile-remote > i.fa-phone,
+#voice-visual.has-remote .call-pulse { display: none; }
 #voice-visual.has-local .call-video-self { display: block; }
 
 /* Активная камера — подсвеченная кнопка */
