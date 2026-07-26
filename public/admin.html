@@ -70,6 +70,9 @@
     .b-ban{background:rgba(224,82,74,.18);color:var(--danger)}
     .b-ok{background:rgba(19,186,130,.16);color:var(--green)}
     .muted{color:var(--muted)}
+    /* Полный UUID: моноширинный, выделяемый, копируется по клику */
+    .uid{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;user-select:all;cursor:pointer}
+    .uid:hover{text-decoration:underline}
     .empty{padding:30px;text-align:center;color:var(--muted)}
 
     .assign{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px}
@@ -172,6 +175,13 @@
     }
     const fmtDate = (ms) => ms ? new Date(ms).toLocaleString('ru-RU') : '—';
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    // Полный UUID пользователя (без обрезания) + копирование по клику
+    const uid = (id) => id
+      ? `<span class="uid" title="Нажмите, чтобы скопировать" onclick="copyId('${esc(id)}')">${esc(id)}</span>`
+      : '<span class="muted">—</span>';
+    function copyId(id) {
+      if (navigator.clipboard) navigator.clipboard.writeText(id).catch(() => {});
+    }
 
     // --- Вход ---
     document.getElementById('login-btn').addEventListener('click', login);
@@ -253,7 +263,7 @@
       const users = await api('/admin/api/users');
       const rows = users.map((u) => `
         <tr>
-          <td class="muted">${esc(u.id).slice(0, 10)}…</td>
+          <td>${uid(u.id)}</td>
           <td>${esc(u.nick) || '<span class="muted">—</span>'}</td>
           <td>${u.gender === 'female' ? 'Ж' : 'М'}</td>
           <td>${esc(u.age)}</td>
@@ -280,8 +290,8 @@
       const reports = await api('/admin/api/reports');
       const rows = reports.map((r) => `
         <tr>
-          <td class="muted">${esc(r.reporterId).slice(0, 10)}…</td>
-          <td class="muted">${esc(r.targetId).slice(0, 10)}…</td>
+          <td>${uid(r.reporterId)}</td>
+          <td>${uid(r.targetId)}</td>
           <td>${esc(r.reason) || '<span class="muted">без причины</span>'}</td>
           <td>${fmtDate(r.createdAt)}</td>
           <td>${r.handled ? '<span class="badge b-ok">Обработана</span>' : '<span class="badge b-ban">Открыта</span>'}</td>
@@ -302,7 +312,7 @@
       const admins = await api('/admin/api/admins');
       const rows = admins.map((u) => `
         <tr>
-          <td class="muted">${esc(u.id).slice(0, 10)}…</td>
+          <td>${uid(u.id)}</td>
           <td>${esc(u.nick) || '<span class="muted">—</span>'}</td>
           <td><span class="badge b-${u.role}">${roleName(u.role)}</span></td>
           <td>${role === 'superAdmin' && u.role !== 'superAdmin'
@@ -328,11 +338,11 @@
     async function loadLogs() {
       const { admin, activity } = await api('/admin/api/logs');
       const aRows = admin.map((l) => `
-        <tr><td>${esc(l.adminId)}</td><td>${esc(l.action)}</td><td class="muted">${esc(l.targetId).slice(0, 12)}</td><td>${fmtDate(l.createdAt)}</td></tr>`).join('');
+        <tr><td>${esc(l.adminId)}</td><td>${esc(l.action)}</td><td>${uid(l.targetId)}</td><td>${fmtDate(l.createdAt)}</td></tr>`).join('');
       document.getElementById('adminlogs-table').innerHTML =
         `<thead><tr><th>Админ</th><th>Действие</th><th>Над кем</th><th>Дата</th></tr></thead><tbody>${aRows || emptyRow(4)}</tbody>`;
       const actRows = activity.map((l) => `
-        <tr><td class="muted">${esc(l.userId).slice(0, 12)}</td><td>${esc(actType(l.type))}</td><td>${esc(l.info)}</td><td>${fmtDate(l.createdAt)}</td></tr>`).join('');
+        <tr><td>${uid(l.userId)}</td><td>${esc(actType(l.type))}</td><td>${esc(l.info)}</td><td>${fmtDate(l.createdAt)}</td></tr>`).join('');
       document.getElementById('activity-table').innerHTML =
         `<thead><tr><th>Пользователь</th><th>Событие</th><th>Данные</th><th>Дата</th></tr></thead><tbody>${actRows || emptyRow(4)}</tbody>`;
     }

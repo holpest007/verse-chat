@@ -351,6 +351,7 @@ io.on('connection', (socket) => {
     if (['18-24', '25-32', '33'].includes(data.age)) me.age = data.age;
     if (data.ageNum) me.ageExact = Math.max(18, Math.min(99, parseInt(data.ageNum, 10) || 18));
     if (typeof data.nick === 'string') me.nick = data.nick.slice(0, 20);
+    if (typeof data.city === 'string' && data.city.trim()) me.city = data.city.trim().slice(0, 40);
     // Сохраняем профиль в БД (премиум-поля сейчас доступны всем)
     const prem = premAccess(me);
     if (prem) {

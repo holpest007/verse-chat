@@ -1080,6 +1080,7 @@ function sendProfile() {
   socket.emit('profile', {
     nick: profile.nick || '',
     gender: profile.gender,
+    city: profile.city || '',
     age: ageToBucket(profile.age),
     ageNum: parseInt(profile.age, 10) || 18,
     // Премиум-поля (сервер применит только при подписке)
