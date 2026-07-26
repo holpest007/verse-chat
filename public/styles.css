@@ -601,6 +601,39 @@ body {
   100% { transform: scale(1.25); opacity: 0; }
 }
 
+/* Видео собеседника — заполняет круглый аватар звонка */
+.call-video {
+  display: none;
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  background: #000;
+  z-index: 3;
+}
+#voice-visual.has-remote .call-video { display: block; }
+#voice-visual.has-remote .call-pulse,
+#voice-visual.has-remote > i.fa-phone { display: none; }
+
+/* Своё превью — маленькое окошко в углу, зеркальное */
+.call-video-self {
+  display: none;
+  position: absolute;
+  width: 76px; height: 76px;
+  right: -6px; bottom: -6px;
+  object-fit: cover;
+  border-radius: 14px;
+  background: #000;
+  border: 2px solid var(--card-2);
+  transform: scaleX(-1);
+  z-index: 5;
+}
+#voice-visual.has-local .call-video-self { display: block; }
+
+/* Активная камера — подсвеченная кнопка */
+.round-btn.cam-on { background: #4f57d6; color: #fff; }
+.round-btn.cam-on:hover { background: #5a63e6; }
+
 .call-title { font-size: 24px; font-weight: 700; margin: 0 0 10px; }
 .call-screen .peer-info {
   display: flex; align-items: center; justify-content: center; gap: 8px;

@@ -298,11 +298,28 @@ let voicePC = null;
 let localStream = null;
 let voicePeerId = null;
 let currentMode = null; // 'voice' | 'text' — для модалок жалобы/правил
+// Состояние переговоров WebRTC (perfect negotiation) для звонка 1-на-1
+let voiceNeg = { polite: false, makingOffer: false, ignoreOffer: false };
+// Камера в звонке 1-на-1
+let voiceCamOn = false;
+let localVideoTrack = null;
 
 async function getMic() {
   if (localStream) return localStream;
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
   return localStream;
+}
+
+// Общая переотправка предложения при добавлении/удалении видеодорожки на лету
+async function renegotiate(pc, peerId, neg) {
+  try {
+    neg.makingOffer = true;
+    const offer = await pc.createOffer();
+    if (pc.signalingState !== 'stable') return;
+    await pc.setLocalDescription(offer);
+    socket.emit('signal', { to: peerId, data: { sdp: pc.localDescription } });
+  } catch (e) { /* переговоры прервались — ничего страшного */ }
+  finally { neg.makingOffer = false; }
 }
 
 function createVoicePC(peerId) {
@@ -311,6 +328,8 @@ function createVoicePC(peerId) {
   const out = getOutgoingStream();
   out.getAudioTracks().forEach((track) => pc.addTrack(track, out));
   pc.ontrack = (e) => {
+    // Видео собеседника — в отдельный <video>, звук — в <audio>
+    if (e.track.kind === 'video') { attachRemoteVideo(e); return; }
     const a = $('#voice-audio');
     a.srcObject = e.streams[0];
     a.muted = false;
@@ -322,6 +341,19 @@ function createVoicePC(peerId) {
     if (e.candidate) socket.emit('signal', { to: peerId, data: { candidate: e.candidate } });
   };
   return pc;
+}
+
+// Показ видео собеседника; скрываем, когда его дорожка заглушена (камера выключена у него)
+function attachRemoteVideo(e) {
+  const v = $('#voice-remote-video');
+  v.srcObject = e.streams[0];
+  v.play().catch(() => {});
+  const show = () => $('#voice-visual').classList.add('has-remote');
+  const hide = () => $('#voice-visual').classList.remove('has-remote');
+  e.track.muted ? hide() : show();
+  e.track.onunmute = show;
+  e.track.onmute = hide;
+  e.track.onended = hide;
 }
 
 // Начать поиск голосового собеседника
@@ -374,9 +406,75 @@ $('#voice-speaker').addEventListener('click', () => {
     : '<i class="fa-solid fa-volume-high"></i>';
 });
 
+// Кнопка «Камера» (вкл/выкл видео с камеры в звонке 1-на-1)
+$('#voice-cam').addEventListener('click', async () => {
+  if (!voicePC) return;
+  const btn = $('#voice-cam');
+  btn.disabled = true;
+  try {
+    if (!voiceCamOn) {
+      let vs;
+      try { vs = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }); }
+      catch (e) { toast('Нет доступа к камере'); return; }
+      localVideoTrack = vs.getVideoTracks()[0];
+      if (localStream) localStream.addTrack(localVideoTrack);
+      voicePC.addTrack(localVideoTrack, localStream || vs);
+      showLocalVideo(localVideoTrack);
+      voiceCamOn = true;
+      setCamBtn(true);
+      await renegotiate(voicePC, voicePeerId, voiceNeg);
+    } else {
+      stopLocalVideo();
+      voiceCamOn = false;
+      setCamBtn(false);
+      await renegotiate(voicePC, voicePeerId, voiceNeg);
+    }
+  } finally { btn.disabled = false; }
+});
+
+function setCamBtn(on) {
+  const btn = $('#voice-cam');
+  btn.classList.toggle('cam-on', on);
+  btn.innerHTML = on
+    ? '<i class="fa-solid fa-video"></i>'
+    : '<i class="fa-solid fa-video-slash"></i>';
+}
+
+function showLocalVideo(track) {
+  const v = $('#voice-local-video');
+  v.srcObject = new MediaStream([track]);
+  v.play().catch(() => {});
+  $('#voice-visual').classList.add('has-local');
+}
+
+function stopLocalVideo() {
+  if (localVideoTrack && voicePC) {
+    const sender = voicePC.getSenders().find((s) => s.track === localVideoTrack);
+    if (sender) voicePC.removeTrack(sender);
+  }
+  if (localVideoTrack) {
+    localVideoTrack.stop();
+    if (localStream) { try { localStream.removeTrack(localVideoTrack); } catch (e) {} }
+    localVideoTrack = null;
+  }
+  $('#voice-local-video').srcObject = null;
+  $('#voice-visual').classList.remove('has-local');
+}
+
+// Полный сброс видео при завершении/начале звонка
+function resetVoiceVideo() {
+  stopLocalVideo();
+  voiceCamOn = false;
+  setCamBtn(false);
+  const rv = $('#voice-remote-video');
+  if (rv) rv.srcObject = null;
+  $('#voice-visual').classList.remove('has-remote', 'has-local');
+}
+
 function closeVoice() {
   stopTimer('voiceCall');
   stopRecordingIfAny(); // сохранить запись, если велась
+  resetVoiceVideo();
   if (voicePC) { voicePC.close(); voicePC = null; }
   voicePeerId = null;
   $('#voice-audio').srcObject = null;
@@ -401,6 +499,9 @@ socket.on('voice:matched', (data) => {
 async function proceedVoiceMatch({ peerId, initiator, partner }) {
   voicePeerId = peerId;
   currentMode = 'voice';
+  // Инициатор шлёт первый offer → он «невежливый»; собеседник «вежливый»
+  voiceNeg = { polite: !initiator, makingOffer: false, ignoreOffer: false };
+  resetVoiceVideo();
   voicePC = createVoicePC(peerId);
   stopTimer('voiceSearch');
   $('#voice-peer-name').textContent = 'Разговор с ' + (partner.nick || 'собеседником');
@@ -425,22 +526,39 @@ async function proceedVoiceMatch({ peerId, initiator, partner }) {
 //  ОБРАБОТКА СИГНАЛОВ WebRTC (голос 1-на-1 и группы)
 // ==========================================================================
 socket.on('signal', async ({ from, data }) => {
-  let pc = null;
-  if (from === voicePeerId) pc = voicePC;
-  else if (groupPeers[from]) pc = groupPeers[from].pc;
+  // neg — объект состояния переговоров: { polite, makingOffer, ignoreOffer }
+  let pc = null, neg = null;
+  if (from === voicePeerId && voicePC) { pc = voicePC; neg = voiceNeg; }
+  else if (groupPeers[from]) { pc = groupPeers[from].pc; neg = groupPeers[from]; }
   if (!pc) return;
 
-  if (data.sdp) {
-    await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-    if (data.sdp.type === 'offer') {
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      socket.emit('signal', { to: from, data: { sdp: pc.localDescription } });
+  try {
+    if (data.sdp) {
+      const desc = data.sdp;
+      // Столкновение предложений (glare): пришёл offer, пока мы сами делаем offer
+      const collision = desc.type === 'offer' &&
+        (neg.makingOffer || pc.signalingState !== 'stable');
+      neg.ignoreOffer = !neg.polite && collision;
+      if (neg.ignoreOffer) return; // невежливая сторона отклоняет чужой offer
+      if (collision) {
+        // Вежливая сторона откатывает свой offer и принимает чужой
+        await Promise.all([
+          pc.setLocalDescription({ type: 'rollback' }).catch(() => {}),
+          pc.setRemoteDescription(new RTCSessionDescription(desc)),
+        ]);
+      } else {
+        await pc.setRemoteDescription(new RTCSessionDescription(desc));
+      }
+      if (desc.type === 'offer') {
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socket.emit('signal', { to: from, data: { sdp: pc.localDescription } });
+      }
+    } else if (data.candidate) {
+      try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); }
+      catch (e) { if (!neg.ignoreOffer) { /* игнорируем гонки кандидатов */ } }
     }
-  } else if (data.candidate) {
-    try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); }
-    catch (e) { /* игнорируем гонки кандидатов */ }
-  }
+  } catch (e) { /* переговоры прервались — молча пропускаем */ }
 });
 
 socket.on('peer:left', () => {
@@ -625,6 +743,7 @@ async function enterGroupRoom(code) {
 
 let groupCode = null;
 const groupPeers = {};
+let roomSpeakerOn = true; // громкая связь в группе (звук всех участников)
 
 // Анализ громкости потока — подсвечивает плитку участника, когда он говорит.
 // tileId: 'me' для себя или socket.id участника.
@@ -672,7 +791,7 @@ function createGroupPC(peerId) {
       document.body.appendChild(audio);
     }
     audio.srcObject = e.streams[0];
-    audio.muted = false;
+    audio.muted = !roomSpeakerOn; // учитываем громкую связь
     audio.play().catch(() => {}); // iOS: явный запуск воспроизведения
     // подсветка «говорит» для этого участника
     if (!document.getElementById('p-' + peerId)) addParticipantTile(peerId, 'Участник');
@@ -681,7 +800,14 @@ function createGroupPC(peerId) {
   pc.onicecandidate = (e) => {
     if (e.candidate) socket.emit('signal', { to: peerId, data: { candidate: e.candidate } });
   };
-  groupPeers[peerId] = { pc };
+  // Поля perfect negotiation. Вежливость определяем детерминированно по id,
+  // чтобы обе стороны выбрали противоположные роли при столкновении offer'ов.
+  groupPeers[peerId] = {
+    pc,
+    polite: (socket.id || '') < peerId,
+    makingOffer: false,
+    ignoreOffer: false,
+  };
   return pc;
 }
 
@@ -720,6 +846,7 @@ socket.on('group:joined', async ({ code, name, peers, isOwner }) => {
   $('#room-messages').innerHTML = '';
   addParticipantTile('me', 'Вы');
   resetRoomMic();
+  resetRoomSpeaker();
   if (localStream) setupVoiceActivity(localStream, 'me');
 
   for (const p of peers) {
@@ -780,6 +907,24 @@ $('#room-mute').addEventListener('click', () => {
   // своя плитка: приглушаем вид и убираем подсветку при выключенном микрофоне
   const me = document.getElementById('p-me');
   if (me) { me.classList.toggle('muted-self', !on); if (!on) me.classList.remove('speaking'); }
+});
+
+// Кнопка «Громкая связь» в группе: глушит/включает звук всех участников
+function resetRoomSpeaker() {
+  roomSpeakerOn = true;
+  const btn = $('#room-speaker');
+  btn.classList.remove('muted');
+  btn.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+}
+$('#room-speaker').addEventListener('click', () => {
+  roomSpeakerOn = !roomSpeakerOn;
+  document.querySelectorAll('audio[id^="audio-"]').forEach((a) => { a.muted = !roomSpeakerOn; });
+  const btn = $('#room-speaker');
+  btn.classList.toggle('muted', !roomSpeakerOn);
+  btn.innerHTML = roomSpeakerOn
+    ? '<i class="fa-solid fa-volume-high"></i>'
+    : '<i class="fa-solid fa-volume-xmark"></i>';
+  toast(roomSpeakerOn ? 'Громкая связь включена' : 'Громкая связь выключена');
 });
 
 $('#room-leave').addEventListener('click', () => {

@@ -103,9 +103,11 @@
             <button class="icon-btn call-icon" data-rules title="Правила"><i class="fa-solid fa-circle-exclamation"></i></button>
           </div>
           <div class="call-timer" id="voice-timer">00:00</div>
-          <div class="call-visual">
+          <div class="call-visual" id="voice-visual">
             <div class="call-pulse"></div>
             <i class="fa-solid fa-phone"></i>
+            <video id="voice-remote-video" class="call-video" autoplay playsinline></video>
+            <video id="voice-local-video" class="call-video-self" autoplay playsinline muted></video>
           </div>
           <h3 class="call-title" id="voice-peer-name">Собеседник</h3>
           <p class="peer-info" id="voice-peer-info"></p>
@@ -113,6 +115,7 @@
             <button class="round-btn" id="voice-mute" title="Микрофон"><i class="fa-solid fa-microphone"></i></button>
             <button class="round-btn round-btn-end" id="voice-end" title="Завершить"><i class="fa-solid fa-phone-slash"></i></button>
             <button class="round-btn" id="voice-speaker" title="Динамик"><i class="fa-solid fa-volume-high"></i></button>
+            <button class="round-btn" id="voice-cam" title="Камера"><i class="fa-solid fa-video-slash"></i></button>
           </div>
           <audio id="voice-audio" autoplay playsinline></audio>
         </div>
@@ -262,6 +265,7 @@
             </div>
             <div class="room-actions">
               <button class="round-btn room-mic" id="room-mute" title="Микрофон"><i class="fa-solid fa-microphone"></i></button>
+              <button class="round-btn room-mic" id="room-speaker" title="Громкая связь"><i class="fa-solid fa-volume-high"></i></button>
               <button class="btn btn-danger btn-sm" id="room-leave">
                 <i class="fa-solid fa-right-from-bracket"></i> Выйти
               </button>
