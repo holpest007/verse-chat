@@ -242,9 +242,11 @@ function switchTab(name) {
 //  ОНЛАЙН-СЧЁТЧИКИ
 // ==========================================================================
 socket.on('counts', (c) => {
-  $('#voice-online').textContent = pluralUsers(c.voice, 'в поиске');
-  $('#text-online').textContent = pluralUsers(c.text, 'в поиске');
-  $('#group-online').textContent = pluralUsers(c.group, 'онлайн');
+  // Общее число онлайн-пользователей на всех вкладках
+  const txt = pluralUsers(c.online || 0, 'онлайн');
+  $('#voice-online').textContent = txt;
+  $('#text-online').textContent = txt;
+  $('#group-online').textContent = txt;
 });
 
 // Экраны каждой вкладки
@@ -703,9 +705,6 @@ socket.on('group:joined', async ({ code, name, peers, isOwner }) => {
   addParticipantTile('me', 'Вы');
   resetRoomMic();
   if (localStream) setupVoiceActivity(localStream, 'me');
-  // Кнопка модерации — только у владельца
-  $('#room-manage').classList.toggle('hidden', !isRoomOwner);
-  $('#moderate-panel').classList.add('hidden');
 
   for (const p of peers) {
     const peerId = p.id || p;
@@ -1623,6 +1622,9 @@ updateFilterGating();
 document.querySelectorAll('.prem-filter').forEach((el) => el.addEventListener('click', () => {
   if (!isPremium()) { if ($('#settings')) $('#settings').classList.add('hidden'); switchTab('subs'); }
 }));
+// Сворачивание/разворачивание расширенных фильтров по клику на заголовок
+document.querySelectorAll('.prem-filter-head').forEach((h) =>
+  h.addEventListener('click', () => h.closest('.prem-filter').classList.toggle('open')));
 
 // ---------- Предпросмотр собеседника до соединения (премиум) ----------
 let pendingMatch = null;

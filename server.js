@@ -46,9 +46,18 @@ admin.mount(app, io, { kickUser });
 // разными сетями (за NAT). TURN задаётся в .env — без него голос может не пройти
 // у части пользователей. Пример: TURN_URL=turn:host:3478 TURN_USER=... TURN_PASS=...
 app.get('/rtc-config', (req, res) => {
-  const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+  const iceServers = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    // Публичный бесплатный TURN (Open Relay) — чтобы голос проходил между
+    // разными сетями/операторами. Для нагрузки поставьте свой TURN в .env.
+    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+  ];
+  // Свой TURN из .env (приоритетнее, если задан)
   if (process.env.TURN_URL) {
-    iceServers.push({
+    iceServers.unshift({
       urls: process.env.TURN_URL,
       username: process.env.TURN_USER || '',
       credential: process.env.TURN_PASS || '',
@@ -203,16 +212,12 @@ function publicCard(u) {
 // ждут собеседника (в очереди) по каждому типу чата. Обновляется в реальном
 // времени при любом изменении очередей.
 function broadcastCounts() {
-  // «Невидимки» (премиум) не учитываются в счётчиках «в поиске»
-  const visible = (queue) => queue.filter((id) => {
-    const u = users.get(id);
-    return u && !u.invisible;
-  }).length;
-  io.emit('counts', {
-    voice: visible(voiceQueue),
-    text: visible(textQueue),
-    group: io.engine.clientsCount || 0,
-  });
+  // Общее число онлайн — по числу подключённых пользователей (кроме «невидимок»).
+  // users содержит по записи на каждый активный сокет (добавляется при connect,
+  // удаляется при disconnect) — это надёжнее, чем engine.clientsCount.
+  let online = 0;
+  for (const u of users.values()) if (!u.invisible) online++;
+  io.emit('counts', { online });
 }
 
 // Убрать socket.id из очереди (если он там есть)

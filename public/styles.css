@@ -846,6 +846,12 @@ body {
 .s-row-col small { color: var(--muted); font-size: 14px; font-weight: 400; }
 .s-support-icon { color: var(--indigo) !important; margin-right: 6px; }
 
+/* Переключатели не должны вылезать за карточку */
+.s-row .s-row-texts { flex: 1; min-width: 0; }
+.s-row-texts span { display: block; }
+.s-row-texts small { display: block; white-space: normal; color: var(--muted); font-size: 13px; }
+.s-row .switch, .switch-field .switch { flex-shrink: 0; margin-left: auto; }
+
 /* Флаг РФ в строке языка */
 .s-row-flag {
   width: 30px; height: 22px; border-radius: 3px; flex-shrink: 0;
@@ -1266,3 +1272,30 @@ textarea.s-input { resize: vertical; font-family: inherit; }
 .subs-head-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 18px; }
 .subs-head-row .subs-title { margin-bottom: 0; }
 .subs-head-row .s-back { flex-shrink: 0; margin-top: 2px; }
+
+/* ==========================================================================
+   Компактные фильтры — чтобы всё помещалось без прокрутки
+   ========================================================================== */
+/* Плашки пола/возраста — в ряд (3 в строке), а не столбцом */
+.chips { flex-direction: row; flex-wrap: wrap; gap: 8px; }
+.chip { flex: 1 1 28%; min-width: 88px; width: auto; padding: 12px 8px; font-size: 14px; text-align: center; }
+
+/* Уменьшенные отступы на экранах поиска */
+#voice-setup .card, #text-setup .card { padding: 14px; margin-bottom: 12px; }
+#voice-setup .card-label, #text-setup .card-label { font-size: 15px; margin-bottom: 9px; }
+#voice-setup .card-label.mt, #text-setup .card-label.mt { margin-top: 14px; }
+#voice-setup .city-select, #text-setup .city-select { height: 52px; }
+#voice-setup .hint, #text-setup .hint { margin: -4px 4px 10px; font-size: 13px; }
+#voice-setup .btn-big, #text-setup .btn-big { padding: 14px; margin-top: 2px; }
+#voice-setup .online, #text-setup .online { margin-top: 12px; font-size: 14px; }
+
+/* Расширенные фильтры компактнее; список интересов — со скроллом внутри */
+.prem-filter .chips-wrap { max-height: 96px; overflow-y: auto; }
+.prem-filter-body .ichip { padding: 6px 10px; font-size: 12px; }
+
+/* Расширенные фильтры — сворачиваемые (по умолчанию свёрнуты, чтобы всё влезало) */
+.prem-filter-head { cursor: pointer; }
+.prem-filter-head::after { content: '\25BE'; color: var(--muted); font-size: 14px; margin-left: 8px; transition: transform 0.2s; }
+.prem-filter.open .prem-filter-head::after { transform: rotate(180deg); }
+.prem-filter .prem-filter-body { display: none; }
+.prem-filter.open .prem-filter-body { display: block; }
