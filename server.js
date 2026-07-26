@@ -25,6 +25,10 @@ app.use(express.json());
 // Раздаём статику (index.html, styles.css, app.js) из папки public
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Раздаём FontAwesome со своего сервера (иконки без внешних CDN,
+// чтобы сайт открывался в РФ без VPN)
+app.use('/fa', express.static(path.join(__dirname, 'node_modules/@fortawesome/fontawesome-free')));
+
 // Разрыв всех сессий пользователя по его UUID (используется при бане из админки)
 function kickUser(uuid) {
   for (const [, sock] of io.sockets.sockets) {
