@@ -117,19 +117,25 @@ function toast(message) {
 // ==========================================================================
 //  ПОЛЕ ГОРОДА С ПОИСКОМ ПО ВВОДУ (автокомплит)
 // ==========================================================================
-function setupCity(inputId, listId) {
+function setupCity(inputId, listId, allowAny) {
   const input = document.getElementById(inputId);
   const list = document.getElementById(listId);
-  input.value = 'Москва'; // город по умолчанию
+  // Для фильтров по умолчанию «Любой» (город не важен), в профиле — «Москва»
+  input.value = allowAny ? 'Любой' : 'Москва';
 
   // Отрисовать список подходящих городов по введённому тексту
   function renderList(query) {
     const q = query.trim().toLowerCase();
-    // Показываем совпадения (максимум 8). Пустой запрос — первые города списка.
-    const matches = (q
-      ? CITIES.filter((c) => c.toLowerCase().includes(q))
-      : CITIES
+    // «Любой» или пустой запрос → показываем весь список городов
+    const showAll = !q || q === 'любой';
+    let matches = (showAll
+      ? CITIES
+      : CITIES.filter((c) => c.toLowerCase().includes(q))
     ).slice(0, 8);
+    // Для фильтров добавляем «Любой» первым пунктом
+    if (allowAny && (showAll || 'любой'.includes(q))) {
+      matches = ['Любой', ...matches].slice(0, 8);
+    }
 
     list.innerHTML = '';
     if (matches.length === 0) {
@@ -157,8 +163,8 @@ function setupCity(inputId, listId) {
   // Прячем список при потере фокуса
   input.addEventListener('blur', () => setTimeout(() => list.classList.add('hidden'), 100));
 }
-setupCity('voice-city', 'voice-city-list');
-setupCity('text-city', 'text-city-list');
+setupCity('voice-city', 'voice-city-list', true);
+setupCity('text-city', 'text-city-list', true);
 
 // ==========================================================================
 //  ПЛАШКИ-ЧИПЫ С МНОЖЕСТВЕННЫМ ВЫБОРОМ
