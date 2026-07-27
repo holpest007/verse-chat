@@ -12,6 +12,7 @@
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 const { Server } = require('socket.io');
 const db = require('./db');           // слой базы данных (SQLite)
 const admin = require('./admin');     // маршруты и логика админ-панели
@@ -20,10 +21,52 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-app.use(express.json());
+// Лимит тела запроса поднят до 8 МБ: фото в чате приходят как base64 (data-URL)
+app.use(express.json({ limit: '8mb' }));
 
 // Раздаём статику (index.html, styles.css, app.js) из папки public
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Папка для загруженных фото (создаём при старте, если ещё нет)
+const UPLOAD_DIR = path.join(__dirname, 'public', 'uploads');
+try { fs.mkdirSync(UPLOAD_DIR, { recursive: true }); } catch (e) {}
+
+// --- Загрузка фото в чат: принимаем base64, пишем файл, возвращаем URL ---
+// Без сторонних зависимостей (multer не нужен) — важно для деплоя в РФ.
+app.post('/api/upload', (req, res) => {
+  try {
+    const data = String((req.body && req.body.image) || '');
+    const m = data.match(/^data:image\/(png|jpe?g|gif|webp);base64,([\s\S]+)$/);
+    if (!m) return res.status(400).json({ ok: false, error: 'Неверный формат изображения' });
+    const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
+    const buf = Buffer.from(m[2], 'base64');
+    if (buf.length > 7 * 1024 * 1024) return res.status(413).json({ ok: false, error: 'Файл слишком большой' });
+    const name = 'img-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
+    fs.writeFileSync(path.join(UPLOAD_DIR, name), buf);
+    res.json({ ok: true, url: '/uploads/' + name });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: 'Не удалось сохранить фото' });
+  }
+});
+
+// --- Определение города по IP (ip-api.com, ответ на русском) ---
+// Запрос идёт с сервера (server→ip-api по http), поэтому нет проблем смешанного
+// контента на https-сайте. Реальный IP берём из заголовка прокси (nginx).
+app.get('/api/geo', async (req, res) => {
+  try {
+    const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    const ip = fwd || req.socket.remoteAddress || '';
+    // Локальные адреса пропускаем — ip-api сам определит по IP запроса, если пусто
+    const clean = /^(127\.|::1|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip) ? '' : ip;
+    const url = 'http://ip-api.com/json/' + encodeURIComponent(clean) + '?fields=status,city,country,countryCode&lang=ru';
+    const r = await fetch(url);
+    const j = await r.json();
+    if (j && j.status === 'success') return res.json({ ok: true, city: j.city || '', country: j.country || '', countryCode: j.countryCode || '' });
+    res.json({ ok: false, city: '' });
+  } catch (e) {
+    res.json({ ok: false, city: '' });
+  }
+});
 
 // Раздаём FontAwesome со своего сервера (иконки без внешних CDN,
 // чтобы сайт открывался в РФ без VPN)
@@ -205,6 +248,7 @@ function publicCard(u) {
     zodiac: u.anon ? '' : (u.zodiac || ''),
     profession: u.anon ? '' : (u.profession || ''),
     height: u.anon ? 0 : (u.height || 0),
+    level: u.level || 1,   // уровень собеседника (показывается рядом с ником)
   };
 }
 
@@ -329,6 +373,7 @@ io.on('connection', (socket) => {
     zodiac: record.zodiac || '',
     profession: record.profession || '',
     height: record.height || 0,
+    level: record.level || 1,        // уровень (система очков)
     filterGenders: ['any'],
     filterAges: ['18-24'],
     filterInterests: [],             // премиум-фильтр по интересам
@@ -342,6 +387,8 @@ io.on('connection', (socket) => {
   broadcastCounts();
   // Сообщаем клиенту его текущую подписку и роль
   socket.emit('me', { subscription: users.get(socket.id).subscription, role: users.get(socket.id).role });
+  // Отправляем текущую статистику/уровень пользователя
+  try { socket.emit('stat:me', db.getUserStats(uuid)); } catch (e) {}
 
   // Профиль пользователя (из настроек): свой пол, возраст, ник + премиум-поля.
   socket.on('profile', (data) => {
@@ -498,20 +545,63 @@ io.on('connection', (socket) => {
     broadcastCounts();
   });
 
-  // Текстовое сообщение собеседнику 1-на-1
+  // Текстовое сообщение собеседнику 1-на-1 (может нести фото и id для реакций)
   socket.on('text:message', (payload) => {
     const me = users.get(socket.id);
     if (!me || !me.partnerId) return;
     const text = String(payload.text || '').slice(0, 2000);
+    const id = String(payload.id || '').slice(0, 64);           // общий id сообщения (для реакций)
+    const image = /^\/uploads\/[\w.-]+$/.test(String(payload.image || '')) ? payload.image : ''; // только наш URL
     const partner = users.get(me.partnerId);
-    io.to(me.partnerId).emit('text:message', { from: 'peer', text });
+    io.to(me.partnerId).emit('text:message', { from: 'peer', text, id, image });
     // История переписки: сохраняем у обоих (сейчас доступно всем)
+    const stored = image ? (text ? text + ' [фото]' : '[фото]') : text;
     if (premAccess(me)) {
-      db.addMessage(me.uuid, partner ? partner.uuid : me.partnerId, partner ? partner.nick : '', 'text', 'out', text);
+      db.addMessage(me.uuid, partner ? partner.uuid : me.partnerId, partner ? partner.nick : '', 'text', 'out', stored);
     }
     if (partner && premAccess(partner)) {
-      db.addMessage(partner.uuid, me.uuid, me.nick, 'text', 'in', text);
+      db.addMessage(partner.uuid, me.uuid, me.nick, 'text', 'in', stored);
     }
+  });
+
+  // Реакция на сообщение (лайк/смайлик) — сохраняем в БД и шлём собеседнику
+  socket.on('text:reaction', (payload) => {
+    const me = users.get(socket.id);
+    if (!me || !me.partnerId) return;
+    const msgId = String((payload && payload.msgId) || '').slice(0, 64);
+    const emoji = String((payload && payload.emoji) || '').slice(0, 16);
+    if (!msgId || !emoji) return;
+    try { db.addReaction(me.uuid, msgId, emoji); } catch (e) {}
+    io.to(me.partnerId).emit('text:reaction', { msgId, emoji, from: 'peer' });
+  });
+
+  // Поделиться выбранной темой разговора с собеседником / группой
+  socket.on('topic:share', (payload) => {
+    const me = users.get(socket.id);
+    if (!me) return;
+    const topic = String((payload && payload.topic) || '').slice(0, 200);
+    if (!topic) return;
+    if (me.partnerId) io.to(me.partnerId).emit('topic:share', { topic });
+    else if (me.groupCode) socket.to(me.groupCode).emit('topic:share', { topic });
+  });
+
+  // Зафиксировать завершённый разговор (для статистики и уровней)
+  socket.on('stat:call', (payload) => {
+    const me = users.get(socket.id);
+    if (!me) return;
+    const dur = Math.max(0, Math.min(24 * 3600, parseInt(payload && payload.duration, 10) || 0));
+    try {
+      const st = db.recordConversation(me.uuid, dur);
+      if (st) { me.level = st.level; socket.emit('stat:me', st); }
+      db.addActivity(me.uuid, 'call', String(dur) + 's');
+    } catch (e) {}
+  });
+
+  // Запрос своей статистики (профиль → «Моя статистика»)
+  socket.on('stat:get', (ack) => {
+    const me = users.get(socket.id);
+    if (typeof ack !== 'function') return;
+    try { ack(db.getUserStats(me ? me.uuid : '')); } catch (e) { ack({ convCount: 0, totalDuration: 0, points: 0, level: 1 }); }
   });
 
   // Подарок собеседнику (премиум): отправляем стикер/анимацию

@@ -73,6 +73,16 @@ db.exec(`
     info      TEXT DEFAULT '',                 -- доп. данные (например длительность)
     createdAt INTEGER
   );
+
+  -- Реакции на сообщения (лайки/смайлики) в текстовом чате
+  CREATE TABLE IF NOT EXISTS reactions (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId    TEXT,                            -- кто поставил реакцию
+    msgId     TEXT,                            -- клиентский id сообщения (общий у пары)
+    emoji     TEXT,                            -- сама реакция (эмодзи)
+    createdAt INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_reactions_msg ON reactions(msgId);
 `);
 
 // Миграция: добавляем новые колонки в уже существующую базу (без потери данных)
@@ -80,6 +90,10 @@ for (const col of [
   "zodiac TEXT DEFAULT ''",
   "profession TEXT DEFAULT ''",
   "height INTEGER DEFAULT 0",
+  "convCount INTEGER DEFAULT 0",     // сколько разговоров провёл (статистика/уровни)
+  "totalDuration INTEGER DEFAULT 0", // суммарная длительность разговоров, сек
+  "points INTEGER DEFAULT 0",        // очки для системы уровней
+  "level INTEGER DEFAULT 1",         // текущий уровень (1..10+)
 ]) {
   try { db.exec('ALTER TABLE users ADD COLUMN ' + col); } catch (e) { /* колонка уже есть */ }
 }
@@ -124,6 +138,33 @@ const stmts = {
     `INSERT INTO activity_logs (userId, type, info, createdAt) VALUES (?, ?, ?, ?)`
   ),
   allActivity: db.prepare('SELECT * FROM activity_logs ORDER BY createdAt DESC LIMIT 200'),
+
+  // --- Статистика пользователя и уровни ---
+  bumpStats: db.prepare(
+    `UPDATE users SET convCount = convCount + 1, totalDuration = totalDuration + ?,
+       points = points + ?, level = ? WHERE id = ?`
+  ),
+
+  // --- Реакции на сообщения ---
+  insertReaction: db.prepare(
+    `INSERT INTO reactions (userId, msgId, emoji, createdAt) VALUES (?, ?, ?, ?)`
+  ),
+  reactionsByMsg: db.prepare('SELECT userId, emoji, createdAt FROM reactions WHERE msgId = ? ORDER BY createdAt'),
+
+  // --- Аналитика (админка) ---
+  // Уникальные пользователи с login-активностью за период (since — метка времени ms)
+  uniqueSince: db.prepare(
+    `SELECT COUNT(DISTINCT userId) AS n FROM activity_logs WHERE type = 'login' AND createdAt >= ?`
+  ),
+  // Все login-события за период — по ним считаем пиковые часы
+  loginsSince: db.prepare(
+    `SELECT createdAt FROM activity_logs WHERE type = 'login' AND createdAt >= ?`
+  ),
+  // Популярные города (по профилям пользователей)
+  topCities: db.prepare(
+    `SELECT city, COUNT(*) AS n FROM users WHERE city IS NOT NULL AND city != ''
+       GROUP BY city ORDER BY n DESC LIMIT 10`
+  ),
 };
 
 // ----------------------------------------------------------------------------
@@ -209,6 +250,68 @@ function addActivity(userId, type, info) {
   stmts.insertActivity.run(userId, type, info || '', Date.now());
 }
 
+// ----------------------------------------------------------------------------
+//  СТАТИСТИКА ПОЛЬЗОВАТЕЛЯ И УРОВНИ
+// ----------------------------------------------------------------------------
+// Уровень зависит от суммы очков. Очки начисляются за разговоры и время в чате.
+// Пороги растут: чем выше уровень, тем больше очков нужно для следующего.
+function levelForPoints(points) {
+  let level = 1;
+  // Порог уровня n: 50 * n * (n-1) / 2 (нарастающая сложность). До 10 и выше.
+  while (level < 99 && points >= 25 * level * (level + 1)) level++;
+  return level;
+}
+
+// Зафиксировать завершённый разговор: +1 к счётчику, +длительность (сек),
+// начислить очки (10 за разговор + 1 за каждую полную минуту) и пересчитать уровень.
+function recordConversation(id, durationSec) {
+  const u = getUser(id);
+  if (!u) return null;
+  const dur = Math.max(0, parseInt(durationSec, 10) || 0);
+  const gained = 10 + Math.floor(dur / 60);
+  const points = (u.points || 0) + gained;
+  const level = levelForPoints(points);
+  stmts.bumpStats.run(dur, gained, level, id);
+  return { convCount: (u.convCount || 0) + 1, totalDuration: (u.totalDuration || 0) + dur, points, level };
+}
+
+// Статистика для профиля пользователя
+function getUserStats(id) {
+  const u = getUser(id);
+  if (!u) return { convCount: 0, totalDuration: 0, points: 0, level: 1 };
+  return {
+    convCount: u.convCount || 0,
+    totalDuration: u.totalDuration || 0,
+    points: u.points || 0,
+    level: u.level || levelForPoints(u.points || 0),
+  };
+}
+
+// --- Реакции на сообщения ---
+function addReaction(userId, msgId, emoji) {
+  stmts.insertReaction.run(userId, String(msgId).slice(0, 64), String(emoji).slice(0, 16), Date.now());
+}
+function getReactions(msgId) {
+  return stmts.reactionsByMsg.all(String(msgId).slice(0, 64));
+}
+
+// --- Аналитика для админки ---
+function getAnalytics() {
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+  const uniqueDay = stmts.uniqueSince.get(now - day).n;
+  const uniqueWeek = stmts.uniqueSince.get(now - 7 * day).n;
+  const uniqueMonth = stmts.uniqueSince.get(now - 30 * day).n;
+  // Пиковые часы за последние 30 дней (0..23)
+  const hours = new Array(24).fill(0);
+  stmts.loginsSince.all(now - 30 * day).forEach((r) => {
+    const h = new Date(r.createdAt).getHours();
+    hours[h] = (hours[h] || 0) + 1;
+  });
+  const cities = stmts.topCities.all();
+  return { unique: { day: uniqueDay, week: uniqueWeek, month: uniqueMonth }, hours, cities };
+}
+
 // Сводная статистика для дашборда админки
 function getStats() {
   const total = stmts.countUsers.get().n;
@@ -236,6 +339,11 @@ module.exports = {
   addMessage,
   getMessages,
   pruneMessages,
+  recordConversation,
+  getUserStats,
+  addReaction,
+  getReactions,
+  getAnalytics,
   getStats,
   allUsers: () => stmts.allUsers.all(),
   allReports: () => stmts.allReports.all(),

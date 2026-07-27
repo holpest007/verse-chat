@@ -9,6 +9,7 @@ const reports = [];           // жалобы
 const adminLogs = [];         // действия админов
 const activityLogs = [];      // активность
 const messages = [];          // история сообщений
+const reactions = [];         // реакции на сообщения
 let reportSeq = 1;
 
 function defaultUser(id) {
@@ -18,6 +19,7 @@ function defaultUser(id) {
     subscription: 'free', subscriptionExpiry: null, role: 'user', isBanned: 0,
     avatar: '', description: '', theme: 'default', interests: '',
     zodiac: '', profession: '', height: 0,
+    convCount: 0, totalDuration: 0, points: 0, level: 1,
     createdAt: now, lastSeen: now,
   };
 }
@@ -94,11 +96,61 @@ function getStats() {
   return { total: users.size, subs, openReports, revenue };
 }
 
+// --- Статистика пользователя и уровни (зеркало db-sqlite) ---
+function levelForPoints(points) {
+  let level = 1;
+  while (level < 99 && points >= 25 * level * (level + 1)) level++;
+  return level;
+}
+function recordConversation(id, durationSec) {
+  const u = getUser(id);
+  if (!u) return null;
+  const dur = Math.max(0, parseInt(durationSec, 10) || 0);
+  const gained = 10 + Math.floor(dur / 60);
+  u.convCount = (u.convCount || 0) + 1;
+  u.totalDuration = (u.totalDuration || 0) + dur;
+  u.points = (u.points || 0) + gained;
+  u.level = levelForPoints(u.points);
+  return { convCount: u.convCount, totalDuration: u.totalDuration, points: u.points, level: u.level };
+}
+function getUserStats(id) {
+  const u = getUser(id);
+  if (!u) return { convCount: 0, totalDuration: 0, points: 0, level: 1 };
+  return { convCount: u.convCount || 0, totalDuration: u.totalDuration || 0, points: u.points || 0, level: u.level || 1 };
+}
+
+// --- Реакции ---
+function addReaction(userId, msgId, emoji) {
+  reactions.push({ userId, msgId: String(msgId).slice(0, 64), emoji: String(emoji).slice(0, 16), createdAt: Date.now() });
+}
+function getReactions(msgId) {
+  return reactions.filter((r) => r.msgId === String(msgId).slice(0, 64)).sort((a, b) => a.createdAt - b.createdAt);
+}
+
+// --- Аналитика ---
+function getAnalytics() {
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+  const uniq = (since) => {
+    const set = new Set();
+    activityLogs.forEach((l) => { if (l.type === 'login' && l.createdAt >= since) set.add(l.userId); });
+    return set.size;
+  };
+  const hours = new Array(24).fill(0);
+  activityLogs.forEach((l) => {
+    if (l.type === 'login' && l.createdAt >= now - 30 * day) hours[new Date(l.createdAt).getHours()]++;
+  });
+  const cityMap = {};
+  for (const u of users.values()) if (u.city) cityMap[u.city] = (cityMap[u.city] || 0) + 1;
+  const cities = Object.entries(cityMap).map(([city, n]) => ({ city, n })).sort((a, b) => b.n - a.n).slice(0, 10);
+  return { unique: { day: uniq(now - day), week: uniq(now - 7 * day), month: uniq(now - 30 * day) }, hours, cities };
+}
+
 module.exports = {
   db: null,
   getOrCreateUser, getUser, getUserByNick, saveProfile, setSubscription, activePlan,
   banUser, setRole, touch, addReport, addAdminLog, addActivity, addMessage, getMessages,
-  pruneMessages, getStats,
+  pruneMessages, recordConversation, getUserStats, addReaction, getReactions, getAnalytics, getStats,
   allUsers: () => [...users.values()].sort((a, b) => b.createdAt - a.createdAt),
   allReports: () => reports.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 200),
   allAdminLogs: () => adminLogs.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 200),

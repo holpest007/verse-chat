@@ -75,6 +75,14 @@
     .uid:hover{text-decoration:underline}
     .empty{padding:30px;text-align:center;color:var(--muted)}
 
+    /* --- Гистограмма пиковых часов --- */
+    .bars{display:flex;align-items:flex-end;gap:4px;height:180px}
+    .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+    .bar{width:100%;max-width:26px;background:var(--indigo);border-radius:5px 5px 0 0;min-height:2px;transition:.2s}
+    .bar-col.peak .bar{background:var(--gold)}
+    .bar-h{font-size:10px;color:var(--muted)}
+    .bar-v{font-size:10px;color:var(--text);font-weight:600}
+
     .assign{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px}
     .assign .input{max-width:260px}
     .assign select{padding:11px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit}
@@ -111,6 +119,7 @@
     </div>
     <div class="tabs">
       <button class="tab active" data-view="dash">Дашборд</button>
+      <button class="tab" data-view="analytics">Аналитика</button>
       <button class="tab" data-view="users">Пользователи</button>
       <button class="tab" data-view="reports">Жалобы</button>
       <button class="tab" data-view="admins">Администраторы</button>
@@ -123,6 +132,15 @@
         <div class="stats" id="stats"></div>
         <h2 class="section">Подписки</h2>
         <div class="stats" id="sub-stats"></div>
+      </div>
+      <!-- Аналитика -->
+      <div class="view" id="v-analytics">
+        <h2 class="section">Посещаемость (уникальные пользователи)</h2>
+        <div class="stats" id="analytics-unique"></div>
+        <h2 class="section">Пиковые часы (за 30 дней)</h2>
+        <div class="table-wrap" style="padding:16px;margin-bottom:24px"><div id="analytics-hours" class="bars"></div></div>
+        <h2 class="section">Популярные города</h2>
+        <div class="table-wrap"><table id="analytics-cities"></table></div>
       </div>
       <!-- Пользователи -->
       <div class="view" id="v-users">
@@ -236,6 +254,7 @@
 
     async function loadView(view) {
       if (view === 'dash') return loadDash();
+      if (view === 'analytics') return loadAnalytics();
       if (view === 'users') return loadUsers();
       if (view === 'reports') return loadReports();
       if (view === 'admins') return loadAdmins();
@@ -257,6 +276,30 @@
         stat('green', s.revenue + ' ₽', 'Доход в месяц');
     }
     const stat = (cls, n, l) => `<div class="stat ${cls}"><div class="n">${esc(n)}</div><div class="l">${esc(l)}</div></div>`;
+
+    // --- Аналитика ---
+    async function loadAnalytics() {
+      const a = await api('/admin/api/analytics');
+      document.getElementById('analytics-unique').innerHTML =
+        stat('indigo', a.unique.day, 'За день') +
+        stat('green', a.unique.week, 'За неделю') +
+        stat('gold', a.unique.month, 'За месяц');
+      // Пиковые часы
+      const hours = a.hours || [];
+      const max = Math.max(1, ...hours);
+      const peak = hours.indexOf(max);
+      document.getElementById('analytics-hours').innerHTML = hours.map((v, h) =>
+        `<div class="bar-col ${v === max && v > 0 ? 'peak' : ''}">
+           <span class="bar-v">${v || ''}</span>
+           <div class="bar" style="height:${Math.round((v / max) * 140)}px"></div>
+           <span class="bar-h">${h}</span>
+         </div>`).join('');
+      // Популярные города
+      const cRows = (a.cities || []).map((c, i) =>
+        `<tr><td>${i + 1}</td><td>${esc(c.city)}</td><td>${esc(c.n)}</td></tr>`).join('');
+      document.getElementById('analytics-cities').innerHTML =
+        `<thead><tr><th>#</th><th>Город</th><th>Пользователей</th></tr></thead><tbody>${cRows || emptyRow(3)}</tbody>`;
+    }
 
     // --- Пользователи ---
     async function loadUsers() {

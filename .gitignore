@@ -6,3 +6,4 @@ data.db-wal
 *.log
 .DS_Store
 package-lock.json
+public/uploads/

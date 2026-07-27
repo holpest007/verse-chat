@@ -84,7 +84,8 @@ function ageRangeText(ages) {
 }
 // Разметка «флаг + Российская Федерация» для карточки собеседника
 function peerInfoHTML(partner) {
-  return `<span class="cflag">${RF_FLAG}</span> ${partner.country} · ${partner.age}`;
+  const lvl = partner.level ? ` · <span class="level-badge sm">Ур. ${partner.level}</span>` : '';
+  return `<span class="cflag">${RF_FLAG}</span> ${partner.country} · ${partner.age}${lvl}`;
 }
 
 const $ = (sel) => document.querySelector(sel);
@@ -298,6 +299,8 @@ let voicePC = null;
 let localStream = null;
 let voicePeerId = null;
 let currentMode = null; // 'voice' | 'text' — для модалок жалобы/правил
+// Метки начала разговора (для статистики длительности), в мс. 0 — разговор не идёт
+let voiceCallStart = 0, textChatStart = 0, groupStart = 0;
 // Состояние переговоров WebRTC (perfect negotiation) для звонка 1-на-1
 let voiceNeg = { polite: false, makingOffer: false, ignoreOffer: false };
 // Камера в звонке 1-на-1
@@ -523,6 +526,7 @@ function resetVoiceVideo() {
 }
 
 function closeVoice() {
+  flushCallStat('voice');
   stopTimer('voiceCall');
   stopRecordingIfAny(); // сохранить запись, если велась
   resetVoiceVideo();
@@ -567,6 +571,8 @@ async function proceedVoiceMatch({ peerId, initiator, partner }) {
   $('#voice-audio').muted = false;
   showScreen('voice', 'call');
   startTimer('voiceCall', '#voice-timer');
+  voiceCallStart = Date.now();
+  resetTopicBar('voice');
   startRecordingIfEnabled(); // премиум: запись своей стороны
   if (initiator) {
     const offer = await voicePC.createOffer();
@@ -671,6 +677,7 @@ $('#text-end').addEventListener('click', () => {
 
 // Показать экран завершения переписки
 function showTextEnded(msg) {
+  flushCallStat('text');
   stopTimer('textSearch');
   $('#text-ended-msg').textContent = msg;
   showScreen('text', 'ended');
@@ -692,6 +699,8 @@ function proceedTextMatch({ peerId, partner }) {
     '<div class="chat-empty" id="text-empty"><i class="fa-regular fa-comment"></i><span>Отправьте первое сообщение</span></div>';
   $('#text-peer-name').textContent = partner.nick || 'Собеседник';
   $('#text-peer-info').innerHTML = peerInfoHTML(partner);
+  textChatStart = Date.now();
+  resetTopicBar('text');
   showScreen('text', 'chat');
 }
 
@@ -707,12 +716,16 @@ $('#text-msg-form').addEventListener('submit', (e) => {
   const text = input.value.trim();
   if (!text || !textPeerId) return;
   clearTextEmpty();
-  socket.emit('text:message', { text });
-  addMessage('#text-messages', text, 'me');
+  const id = 'm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+  socket.emit('text:message', { text, id });
+  addTextMessage({ text, who: 'me', id });
   input.value = '';
 });
 
-socket.on('text:message', ({ text }) => { clearTextEmpty(); addMessage('#text-messages', text, 'peer'); });
+socket.on('text:message', ({ text, id, image }) => {
+  clearTextEmpty();
+  addTextMessage({ text, who: 'peer', id, image });
+});
 
 // ==========================================================================
 //  ГРУППОВОЙ ЧАТ
@@ -898,6 +911,8 @@ socket.on('group:joined', async ({ code, name, peers, isOwner }) => {
   $('#room-participants').innerHTML = '';
   $('#room-messages').innerHTML = '';
   addParticipantTile('me', 'Вы');
+  groupStart = Date.now();
+  resetTopicBar('group');
   resetRoomMic();
   resetRoomSpeaker();
   if (localStream) setupVoiceActivity(localStream, 'me');
@@ -981,6 +996,7 @@ $('#room-speaker').addEventListener('click', () => {
 });
 
 $('#room-leave').addEventListener('click', () => {
+  flushCallStat('group');
   socket.emit('group:leave');
   Object.keys(groupPeers).forEach((id) => {
     groupPeers[id].pc.close();
@@ -2032,4 +2048,276 @@ socket.on('me', () => {
 });
 socket.on('voice:matched', () => maybeNotify('Собеседник найден!', 'Вас ждут в голосовом чате'));
 socket.on('text:matched', () => maybeNotify('Собеседник найден!', 'Вас ждут в текстовом чате'));
+
+/* ==========================================================================
+   ЭТАП 5 (Фаза 1): статистика/уровни, ID в профиле, темы разговора,
+   реакции на сообщения, отправка фото, определение города по IP
+   ========================================================================== */
+
+// ---------- МОЙ ID В ПРОФИЛЕ ----------
+(function initProfileId() {
+  const el = document.getElementById('pf-uuid');
+  if (el) el.textContent = getUUID();
+  const copy = document.getElementById('pf-uuid-copy');
+  if (copy) copy.addEventListener('click', () => {
+    navigator.clipboard.writeText(getUUID())
+      .then(() => toast('ID скопирован'))
+      .catch(() => toast('Не удалось скопировать'));
+  });
+})();
+
+// ---------- СТАТИСТИКА И УРОВНИ ----------
+// Порог очков для достижения уровня n (совпадает с сервером)
+function pointsForLevel(n) { return 25 * (n - 1) * n; }
+let myStats = { convCount: 0, totalDuration: 0, points: 0, level: 1 };
+
+function renderStats() {
+  const s = myStats;
+  const lvlEl = document.getElementById('pf-level');
+  if (lvlEl) lvlEl.textContent = 'Ур. ' + (s.level || 1);
+  const ptsEl = document.getElementById('pf-level-pts');
+  if (ptsEl) ptsEl.textContent = (s.points || 0) + ' очк.';
+  // Прогресс до следующего уровня
+  const cur = pointsForLevel(s.level || 1);
+  const next = pointsForLevel((s.level || 1) + 1);
+  const pct = next > cur ? Math.min(100, Math.round(((s.points - cur) / (next - cur)) * 100)) : 100;
+  const fill = document.getElementById('pf-level-fill');
+  if (fill) fill.style.width = pct + '%';
+  const conv = document.getElementById('pf-stat-conv');
+  if (conv) conv.textContent = s.convCount || 0;
+  const time = document.getElementById('pf-stat-time');
+  if (time) time.textContent = Math.round((s.totalDuration || 0) / 60) + ' мин';
+  const avg = document.getElementById('pf-stat-avg');
+  if (avg) {
+    const a = s.convCount ? Math.round((s.totalDuration / s.convCount) / 60) : 0;
+    avg.textContent = a + ' мин';
+  }
+}
+socket.on('stat:me', (s) => { if (s) { myStats = s; renderStats(); } });
+// Обновляем статистику при открытии раздела «Профиль»
+const openProfileRow = document.querySelector('[data-open="profile"]');
+if (openProfileRow) openProfileRow.addEventListener('click', () => {
+  socket.emit('stat:get', (s) => { if (s) { myStats = s; renderStats(); } });
+});
+
+// Отправить длительность завершённого разговора на сервер (для очков/уровня)
+function flushCallStat(mode) {
+  let start = 0;
+  if (mode === 'voice') { start = voiceCallStart; voiceCallStart = 0; }
+  else if (mode === 'text') { start = textChatStart; textChatStart = 0; }
+  else if (mode === 'group') { start = groupStart; groupStart = 0; }
+  if (!start) return;
+  const dur = Math.round((Date.now() - start) / 1000);
+  if (dur < 3) return; // слишком короткие сессии не считаем
+  socket.emit('stat:call', { mode, duration: dur });
+}
+
+// ---------- ТЕМЫ ДЛЯ РАЗГОВОРА ----------
+let TOPICS = [
+  'Какое у тебя самое яркое воспоминание из детства?',
+  'Если бы ты мог(ла) отправиться в любую точку мира — куда?',
+  'Какой фильм ты можешь пересматривать бесконечно?',
+];
+fetch('topics.json').then((r) => r.json()).then((list) => {
+  if (Array.isArray(list) && list.length) TOPICS = list;
+}).catch(() => {});
+
+let lastTopic = '';
+function randomTopic() {
+  if (TOPICS.length <= 1) return TOPICS[0] || '';
+  let t;
+  do { t = TOPICS[Math.floor(Math.random() * TOPICS.length)]; } while (t === lastTopic);
+  lastTopic = t;
+  return t;
+}
+// Показать тему в панели нужного режима
+function setTopicText(mode, text) {
+  const bar = document.querySelector('.topic-bar[data-topic="' + mode + '"]');
+  if (!bar) return;
+  const span = bar.querySelector('.topic-text');
+  if (span) { span.textContent = text; span.classList.add('has-topic'); }
+}
+// Сбросить панель темы при начале нового разговора
+function resetTopicBar(mode) {
+  const bar = document.querySelector('.topic-bar[data-topic="' + mode + '"]');
+  if (!bar) return;
+  const span = bar.querySelector('.topic-text');
+  if (span) span.classList.remove('has-topic');
+}
+// Клик по кнопке «Подобрать тему»
+document.querySelectorAll('.topic-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const bar = btn.closest('.topic-bar');
+    const mode = bar ? bar.dataset.topic : '';
+    const topic = randomTopic();
+    if (!topic) return;
+    setTopicText(mode, topic);
+    socket.emit('topic:share', { topic }); // синхронизируем с собеседником/группой
+  });
+});
+// Собеседник/группа выбрал(и) тему — показываем её у себя
+socket.on('topic:share', ({ topic }) => {
+  if (!topic) return;
+  const mode = currentMode || (groupCode ? 'group' : '');
+  if (mode) setTopicText(mode, topic);
+});
+
+// ---------- ТЕКСТОВОЕ СООБЩЕНИЕ С РЕАКЦИЯМИ И ФОТО ----------
+const REACTIONS = ['❤️', '👍', '😂', '😮', '😢', '🔥'];
+
+// Универсальный рендер сообщения в текстовом чате 1-на-1
+function addTextMessage({ text, who, id, image }) {
+  const box = $('#text-messages');
+  if (!box) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap ' + who;
+  if (id) wrap.dataset.id = id;
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg ' + who;
+  if (image) {
+    const img = document.createElement('img');
+    img.className = 'msg-img';
+    img.src = image;
+    img.loading = 'lazy';
+    img.addEventListener('click', () => window.open(image, '_blank'));
+    bubble.appendChild(img);
+  }
+  if (text) bubble.appendChild(document.createTextNode(text));
+  // Клик по сообщению — меню реакций (реакцию можно ставить на любое сообщение)
+  if (id) bubble.addEventListener('click', (e) => {
+    if (e.target.classList.contains('msg-img')) return; // клик по фото открывает его
+    openReactionPicker(bubble, id);
+  });
+  wrap.appendChild(bubble);
+
+  const reactions = document.createElement('div');
+  reactions.className = 'reactions';
+  wrap.appendChild(reactions);
+
+  box.appendChild(wrap);
+  box.scrollTop = box.scrollHeight;
+  return wrap;
+}
+
+// Меню выбора реакции возле сообщения
+let reactionPickerEl = null;
+function closeReactionPicker() {
+  if (reactionPickerEl) { reactionPickerEl.remove(); reactionPickerEl = null; }
+}
+function openReactionPicker(bubble, msgId) {
+  closeReactionPicker();
+  const picker = document.createElement('div');
+  picker.className = 'reaction-picker';
+  REACTIONS.forEach((emoji) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'reaction-opt';
+    b.textContent = emoji;
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyReaction(msgId, emoji, 'me');
+      socket.emit('text:reaction', { msgId, emoji });
+      closeReactionPicker();
+    });
+    picker.appendChild(b);
+  });
+  bubble.parentElement.appendChild(picker);
+  reactionPickerEl = picker;
+  // Закрытие по клику вне меню
+  setTimeout(() => document.addEventListener('click', onDocClickCloseReaction, { once: true }), 0);
+}
+function onDocClickCloseReaction(e) {
+  if (reactionPickerEl && !reactionPickerEl.contains(e.target)) closeReactionPicker();
+}
+// Показать реакцию под сообщением
+function applyReaction(msgId, emoji, who) {
+  const wrap = document.querySelector('.msg-wrap[data-id="' + CSS.escape(msgId) + '"]');
+  if (!wrap) return;
+  const box = wrap.querySelector('.reactions');
+  if (!box) return;
+  const chip = document.createElement('span');
+  chip.className = 'reaction-chip ' + who;
+  chip.textContent = emoji;
+  box.appendChild(chip);
+}
+socket.on('text:reaction', ({ msgId, emoji }) => applyReaction(msgId, emoji, 'peer'));
+
+// ---------- ОТПРАВКА ФОТО В ТЕКСТОВОМ ЧАТЕ ----------
+const textPhotoBtn = document.getElementById('text-photo-btn');
+const textPhotoInput = document.getElementById('text-photo-input');
+if (textPhotoBtn && textPhotoInput) {
+  textPhotoBtn.addEventListener('click', () => { if (textPeerId) textPhotoInput.click(); else toast('Нет активного диалога'); });
+  textPhotoInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    e.target.value = ''; // сброс, чтобы можно было выбрать тот же файл снова
+    if (!file || !textPeerId) return;
+    resizeImage(file, 1280, 0.82).then((dataUrl) => uploadPhoto(dataUrl)).catch(() => toast('Не удалось обработать фото'));
+  });
+}
+// Уменьшить изображение до maxSide и вернуть data-URL (jpeg)
+function resizeImage(file, maxSide, quality) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxSide || height > maxSide) {
+          const k = Math.min(maxSide / width, maxSide / height);
+          width = Math.round(width * k); height = Math.round(height * k);
+        }
+        const c = document.createElement('canvas');
+        c.width = width; c.height = height;
+        c.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(c.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+// Загрузить фото на сервер и отправить ссылку собеседнику
+function uploadPhoto(dataUrl) {
+  toast('Отправка фото…');
+  fetch('/api/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: dataUrl }),
+  }).then((r) => r.json()).then((res) => {
+    if (!res.ok || !res.url) { toast(res.error || 'Ошибка загрузки'); return; }
+    if (!textPeerId) return;
+    clearTextEmpty();
+    const id = 'm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+    socket.emit('text:message', { text: '', image: res.url, id });
+    addTextMessage({ who: 'me', id, image: res.url });
+  }).catch(() => toast('Ошибка загрузки фото'));
+}
+
+// ---------- ОПРЕДЕЛЕНИЕ ГОРОДА ПО IP (первый заход) ----------
+(function detectCityByIP() {
+  // Только при первом заходе и если город ещё не задан пользователем
+  if (localStorage.getItem('vt_geo_done')) return;
+  if (profile && profile.city && profile.city !== 'Москва') { localStorage.setItem('vt_geo_done', '1'); return; }
+  fetch('/api/geo').then((r) => r.json()).then((res) => {
+    localStorage.setItem('vt_geo_done', '1');
+    if (!res || !res.ok || !res.city) return;
+    // Подставляем в профиль, если пользователь ещё не выбрал город вручную
+    if (!profile.city || profile.city === 'Москва') {
+      profile.city = res.city;
+      localStorage.setItem('vt_profile', JSON.stringify(profile));
+      const pf = document.getElementById('pf-city');
+      if (pf) pf.value = res.city;
+      // и в фильтры вкладок, если там ещё «Любой»/пусто
+      ['voice-city', 'text-city'].forEach((idc) => {
+        const el = document.getElementById(idc);
+        if (el && (!el.value || el.value === 'Любой')) el.value = res.city;
+      });
+      sendProfile();
+      toast('Город определён: ' + res.city);
+    }
+  }).catch(() => { localStorage.setItem('vt_geo_done', '1'); });
+})();
 

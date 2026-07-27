@@ -120,6 +120,10 @@
           </div>
           <h3 class="call-title" id="voice-peer-name">Собеседник</h3>
           <p class="peer-info" id="voice-peer-info"></p>
+          <div class="topic-bar" data-topic="voice">
+            <span class="topic-text">Нажмите «Подобрать тему», чтобы начать разговор</span>
+            <button type="button" class="btn btn-ghost btn-sm topic-btn"><i class="fa-solid fa-shuffle"></i> Подобрать тему</button>
+          </div>
           <div class="call-controls">
             <button class="round-btn" id="voice-mute" title="Микрофон"><i class="fa-solid fa-microphone"></i></button>
             <button class="round-btn round-btn-end" id="voice-end" title="Завершить"><i class="fa-solid fa-phone-slash"></i></button>
@@ -282,6 +286,10 @@
             </div>
           </div>
           <div class="mic-hint" id="room-mic-hint">Микрофон включён — говорите</div>
+          <div class="topic-bar" data-topic="group">
+            <span class="topic-text">Подберите тему для общей беседы</span>
+            <button type="button" class="btn btn-ghost btn-sm topic-btn"><i class="fa-solid fa-shuffle"></i> Тема</button>
+          </div>
           <div class="participants" id="room-participants"></div>
           <div class="chat">
             <div class="messages" id="room-messages"></div>
@@ -369,6 +377,10 @@
             <button class="icon-btn" data-report title="Пожаловаться"><i class="fa-solid fa-gavel"></i></button>
             <button class="icon-btn" data-rules title="Правила"><i class="fa-solid fa-circle-exclamation"></i></button>
           </div>
+          <div class="topic-bar" data-topic="text">
+            <span class="topic-text">Не знаете, с чего начать? Подберите тему</span>
+            <button type="button" class="btn btn-ghost btn-sm topic-btn"><i class="fa-solid fa-shuffle"></i> Тема</button>
+          </div>
           <div class="messages" id="text-messages">
             <div class="chat-empty" id="text-empty">
               <i class="fa-regular fa-comment"></i>
@@ -376,6 +388,8 @@
             </div>
           </div>
           <form class="msg-form" id="text-msg-form">
+            <button type="button" class="btn-gift" id="text-photo-btn" title="Прикрепить фото"><i class="fa-solid fa-image"></i></button>
+            <input type="file" id="text-photo-input" accept="image/*" hidden />
             <button type="button" class="btn-gift" id="text-gift-btn" title="Подарок"><i class="fa-solid fa-gift"></i></button>
             <input type="text" id="text-msg-input" class="input" placeholder="Сообщение" autocomplete="off" />
             <button class="btn-send" type="submit" title="Отправить"><i class="fa-regular fa-paper-plane"></i></button>
@@ -629,6 +643,31 @@
               <span class="s-field-label">Рост, см</span>
               <input type="number" id="pf-height" class="s-input" min="120" max="230" placeholder="175" />
             </label>
+          </div>
+
+          <!-- Моя статистика (уровень, разговоры, время) -->
+          <div class="stats-block">
+            <div class="card-label"><i class="fa-solid fa-chart-simple"></i> Моя статистика</div>
+            <div class="my-level">
+              <span class="level-badge" id="pf-level">Ур. 1</span>
+              <div class="level-bar"><span id="pf-level-fill"></span></div>
+              <span class="level-pts" id="pf-level-pts">0 очков</span>
+            </div>
+            <div class="stat-grid">
+              <div class="stat-cell"><b id="pf-stat-conv">0</b><small>разговоров</small></div>
+              <div class="stat-cell"><b id="pf-stat-time">0 мин</b><small>в сумме</small></div>
+              <div class="stat-cell"><b id="pf-stat-avg">0 мин</b><small>в среднем</small></div>
+            </div>
+          </div>
+
+          <!-- Мой идентификатор (для обращения в поддержку/к админу) -->
+          <div class="s-field">
+            <span class="s-field-label">Мой ID</span>
+            <div class="id-field">
+              <code id="pf-uuid" class="id-value">—</code>
+              <button class="btn btn-ghost btn-sm" id="pf-uuid-copy" title="Копировать ID"><i class="fa-regular fa-copy"></i></button>
+            </div>
+            <p class="s-hint">Сообщите этот ID администратору для быстрой идентификации.</p>
           </div>
 
           <button class="btn btn-outline-danger" id="pf-delete">Удалить профиль</button>

@@ -1373,3 +1373,65 @@ textarea.s-input { resize: vertical; font-family: inherit; }
 .prem-filter.open .prem-filter-head::after { transform: rotate(180deg); }
 .prem-filter .prem-filter-body { display: none; }
 .prem-filter.open .prem-filter-body { display: block; }
+
+/* ==========================================================================
+   ЭТАП 5 (Фаза 1): темы разговора, уровни/статистика, ID, реакции, фото
+   ========================================================================== */
+
+/* ---------- Панель «Подобрать тему» ---------- */
+.topic-bar {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--card-2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 8px 12px; margin: 4px 0 8px;
+}
+.topic-bar .topic-text { flex: 1; font-size: 13px; color: var(--muted); line-height: 1.35; }
+.topic-bar .topic-text.has-topic { color: var(--text); font-weight: 600; }
+.topic-bar .topic-btn { flex-shrink: 0; white-space: nowrap; }
+
+/* ---------- Уровни и статистика профиля ---------- */
+.level-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: linear-gradient(135deg, var(--indigo), #7b83f0);
+  color: #fff; font-weight: 700; font-size: 12px;
+  padding: 3px 10px; border-radius: 20px;
+}
+.level-badge.sm { padding: 1px 7px; font-size: 11px; }
+.stats-block { margin-top: 18px; }
+.my-level { display: flex; align-items: center; gap: 10px; margin: 10px 0 14px; }
+.level-bar { flex: 1; height: 8px; background: var(--card-2); border-radius: 6px; overflow: hidden; }
+.level-bar span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--indigo), var(--green)); transition: width 0.4s; }
+.level-pts { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.stat-cell { background: var(--card-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px 8px; text-align: center; }
+.stat-cell b { display: block; font-size: 18px; font-weight: 800; }
+.stat-cell small { color: var(--muted); font-size: 11px; }
+
+/* ---------- Мой ID ---------- */
+.id-field { display: flex; align-items: center; gap: 8px; }
+.id-value {
+  flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px; background: var(--card-2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 12px; user-select: all; word-break: break-all;
+}
+
+/* ---------- Сообщения с реакциями и фото ---------- */
+.msg-wrap { display: flex; flex-direction: column; max-width: 82%; }
+.msg-wrap.me { align-self: flex-end; align-items: flex-end; }
+.msg-wrap.peer { align-self: flex-start; align-items: flex-start; }
+.msg-wrap .msg { max-width: 100%; cursor: pointer; }
+.msg-img { display: block; max-width: 220px; max-height: 260px; border-radius: 10px; cursor: pointer; }
+.reactions { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; }
+.reaction-chip {
+  font-size: 13px; background: var(--card-2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 1px 7px; line-height: 1.5;
+}
+.reaction-picker {
+  display: flex; gap: 4px; margin-top: 4px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 22px; padding: 5px 8px; box-shadow: var(--shadow);
+}
+.reaction-opt {
+  background: none; border: none; font-size: 20px; cursor: pointer;
+  padding: 2px 4px; border-radius: 50%; transition: transform 0.12s;
+}
+.reaction-opt:hover { transform: scale(1.25); }

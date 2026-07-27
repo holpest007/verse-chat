@@ -149,6 +149,12 @@ function mount(app, io, providedHooks) {
     res.json({ admin: db.allAdminLogs(), activity: db.allActivity() });
   });
 
+  // --- Аналитика (посещаемость, пиковые часы, популярные города) ---
+  app.get('/admin/api/analytics', auth, (req, res) => {
+    try { res.json(db.getAnalytics()); }
+    catch (e) { res.json({ unique: { day: 0, week: 0, month: 0 }, hours: new Array(24).fill(0), cities: [] }); }
+  });
+
   // --- Сама страница админ-панели ---
   app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
