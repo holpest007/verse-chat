@@ -165,6 +165,7 @@ function setupCity(inputId, listId, allowAny) {
   input.addEventListener('blur', () => setTimeout(() => list.classList.add('hidden'), 100));
 }
 setupCity('voice-city', 'voice-city-list', true);
+setupCity('video-city', 'video-city-list', true);
 setupCity('text-city', 'text-city-list', true);
 
 // ==========================================================================
@@ -254,11 +255,14 @@ socket.on('counts', (c) => {
   $('#voice-online').textContent = txt;
   $('#text-online').textContent = txt;
   $('#group-online').textContent = txt;
+  const vo = $('#video-online');
+  if (vo) vo.textContent = txt;
 });
 
 // Экраны каждой вкладки
 const SCREENS = {
   voice: ['setup', 'searching', 'call', 'ended'],
+  video: ['setup', 'searching', 'call', 'ended'],
   text: ['setup', 'searching', 'chat', 'ended'],
 };
 // Показать один из экранов внутри вкладки
@@ -300,13 +304,9 @@ let localStream = null;
 let voicePeerId = null;
 let currentMode = null; // 'voice' | 'text' — для модалок жалобы/правил
 // Метки начала разговора (для статистики длительности), в мс. 0 — разговор не идёт
-let voiceCallStart = 0, textChatStart = 0, groupStart = 0;
+let voiceCallStart = 0, textChatStart = 0, groupStart = 0, videoCallStart = 0;
 // Состояние переговоров WebRTC (perfect negotiation) для звонка 1-на-1
 let voiceNeg = { polite: false, makingOffer: false, ignoreOffer: false };
-// Камера в звонке 1-на-1
-let voiceCamOn = false;
-let localVideoTrack = null;
-let facingMode = 'user'; // 'user' — фронтальная, 'environment' — тыловая
 
 async function getMic() {
   if (localStream) return localStream;
@@ -332,8 +332,7 @@ function createVoicePC(peerId) {
   const out = getOutgoingStream();
   out.getAudioTracks().forEach((track) => pc.addTrack(track, out));
   pc.ontrack = (e) => {
-    // Видео собеседника — в отдельный <video>, звук — в <audio>
-    if (e.track.kind === 'video') { attachRemoteVideo(e); return; }
+    // Голосовой чат — только звук
     const a = $('#voice-audio');
     a.srcObject = e.streams[0];
     a.muted = false;
@@ -345,19 +344,6 @@ function createVoicePC(peerId) {
     if (e.candidate) socket.emit('signal', { to: peerId, data: { candidate: e.candidate } });
   };
   return pc;
-}
-
-// Показ видео собеседника; скрываем, когда его дорожка заглушена (камера выключена у него)
-function attachRemoteVideo(e) {
-  const v = $('#voice-remote-video');
-  v.srcObject = e.streams[0];
-  v.play().catch(() => {});
-  const show = () => $('#voice-visual').classList.add('has-remote');
-  const hide = () => $('#voice-visual').classList.remove('has-remote');
-  e.track.muted ? hide() : show();
-  e.track.onunmute = show;
-  e.track.onmute = hide;
-  e.track.onended = hide;
 }
 
 // Начать поиск голосового собеседника
@@ -410,126 +396,10 @@ $('#voice-speaker').addEventListener('click', () => {
     : '<i class="fa-solid fa-volume-high"></i>';
 });
 
-// Кнопка «Камера» (вкл/выкл видео с камеры в звонке 1-на-1)
-$('#voice-cam').addEventListener('click', async () => {
-  if (!voicePC) return;
-  const btn = $('#voice-cam');
-  btn.disabled = true;
-  try {
-    if (!voiceCamOn) {
-      facingMode = 'user'; // при включении всегда стартуем с фронтальной
-      let vs;
-      try { vs = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facingMode } } }); }
-      catch (e) { toast('Нет доступа к камере'); return; }
-      localVideoTrack = vs.getVideoTracks()[0];
-      if (localStream) localStream.addTrack(localVideoTrack);
-      voicePC.addTrack(localVideoTrack, localStream || vs);
-      showLocalVideo(localVideoTrack);
-      voiceCamOn = true;
-      setCamBtn(true);
-      await renegotiate(voicePC, voicePeerId, voiceNeg);
-    } else {
-      stopLocalVideo();
-      voiceCamOn = false;
-      setCamBtn(false);
-      await renegotiate(voicePC, voicePeerId, voiceNeg);
-    }
-  } finally { btn.disabled = false; }
-});
-
-function setCamBtn(on) {
-  const btn = $('#voice-cam');
-  btn.classList.toggle('cam-on', on);
-  btn.innerHTML = on
-    ? '<i class="fa-solid fa-video"></i>'
-    : '<i class="fa-solid fa-video-slash"></i>';
-  // Кнопка переворота доступна только при включённой камере
-  const flip = $('#voice-flip');
-  flip.disabled = !on;
-  if (!on) { flip.classList.remove('flip-rear'); flip.title = 'Перевернуть камеру'; }
-}
-
-// Кнопка «Перевернуть камеру» — фронтальная ⇄ тыловая, без переустановки соединения
-$('#voice-flip').addEventListener('click', async () => {
-  if (!voiceCamOn || !voicePC) return;
-  const btn = $('#voice-flip');
-  btn.disabled = true;
-  const target = facingMode === 'user' ? 'environment' : 'user';
-  let vs;
-  try {
-    vs = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: target } } });
-  } catch (e) {
-    toast('Вторая камера недоступна');
-    btn.disabled = false;
-    return;
-  }
-  const newTrack = vs.getVideoTracks()[0];
-  // Заменяем видеодорожку прямо в отправителе — renegotiation не нужен
-  const sender = voicePC.getSenders().find((s) => s.track && s.track.kind === 'video');
-  try {
-    if (sender) await sender.replaceTrack(newTrack);
-  } catch (e) {
-    newTrack.stop();
-    toast('Не удалось переключить камеру');
-    btn.disabled = false;
-    return;
-  }
-  // Обновляем локальный поток и превью
-  if (localStream && localVideoTrack) { try { localStream.removeTrack(localVideoTrack); } catch (e) {} }
-  if (localVideoTrack) localVideoTrack.stop();
-  localVideoTrack = newTrack;
-  if (localStream) localStream.addTrack(newTrack);
-  showLocalVideo(newTrack);
-  facingMode = target;
-  setFlipBtn();
-  btn.disabled = false;
-  toast(facingMode === 'user' ? 'Фронтальная камера' : 'Тыловая камера');
-});
-
-function setFlipBtn() {
-  const flip = $('#voice-flip');
-  const rear = facingMode === 'environment';
-  flip.classList.toggle('flip-rear', rear);
-  flip.title = rear ? 'Камера: тыловая' : 'Камера: фронтальная';
-}
-
-function showLocalVideo(track) {
-  const v = $('#voice-local-video');
-  v.srcObject = new MediaStream([track]);
-  v.play().catch(() => {});
-  $('#voice-visual').classList.add('has-local');
-}
-
-function stopLocalVideo() {
-  if (localVideoTrack && voicePC) {
-    const sender = voicePC.getSenders().find((s) => s.track === localVideoTrack);
-    if (sender) voicePC.removeTrack(sender);
-  }
-  if (localVideoTrack) {
-    localVideoTrack.stop();
-    if (localStream) { try { localStream.removeTrack(localVideoTrack); } catch (e) {} }
-    localVideoTrack = null;
-  }
-  $('#voice-local-video').srcObject = null;
-  $('#voice-visual').classList.remove('has-local');
-}
-
-// Полный сброс видео при завершении/начале звонка
-function resetVoiceVideo() {
-  stopLocalVideo();
-  voiceCamOn = false;
-  facingMode = 'user';
-  setCamBtn(false); // заодно выключит и заблокирует кнопку переворота
-  const rv = $('#voice-remote-video');
-  if (rv) rv.srcObject = null;
-  $('#voice-visual').classList.remove('has-remote', 'has-local');
-}
-
 function closeVoice() {
   flushCallStat('voice');
   stopTimer('voiceCall');
   stopRecordingIfAny(); // сохранить запись, если велась
-  resetVoiceVideo();
   if (voicePC) { voicePC.close(); voicePC = null; }
   voicePeerId = null;
   $('#voice-audio').srcObject = null;
@@ -556,7 +426,6 @@ async function proceedVoiceMatch({ peerId, initiator, partner }) {
   currentMode = 'voice';
   // Инициатор шлёт первый offer → он «невежливый»; собеседник «вежливый»
   voiceNeg = { polite: !initiator, makingOffer: false, ignoreOffer: false };
-  resetVoiceVideo();
   voicePC = createVoicePC(peerId);
   stopTimer('voiceSearch');
   $('#voice-peer-name').textContent = 'Разговор с ' + (partner.nick || 'собеседником');
@@ -588,6 +457,7 @@ socket.on('signal', async ({ from, data }) => {
   // neg — объект состояния переговоров: { polite, makingOffer, ignoreOffer }
   let pc = null, neg = null;
   if (from === voicePeerId && voicePC) { pc = voicePC; neg = voiceNeg; }
+  else if (from === videoPeerId && videoPC) { pc = videoPC; neg = videoNeg; }
   else if (groupPeers[from]) { pc = groupPeers[from].pc; neg = groupPeers[from]; }
   if (!pc) return;
 
@@ -624,6 +494,10 @@ socket.on('peer:left', () => {
   if (voicePeerId) {
     closeVoice();
     showVoiceEnded('Собеседник покинул чат');
+  }
+  if (videoPeerId) {
+    closeVideo();
+    showVideoEnded('Собеседник покинул чат');
   }
   if (textPeerId) {
     textPeerId = null;
@@ -847,7 +721,21 @@ function createGroupPC(peerId) {
   // Исходящий звук с учётом голосового эффекта (премиум)
   const out = getOutgoingStream();
   out.getAudioTracks().forEach((track) => pc.addTrack(track, out));
+  // Если своя камера уже включена — сразу отдаём видеодорожку новому участнику
+  if (groupCamOn && groupCamStream) {
+    const vt = groupCamStream.getVideoTracks()[0];
+    if (vt) pc.addTrack(vt, groupCamStream);
+  }
   pc.ontrack = (e) => {
+    if (e.track.kind === 'video') {
+      // Видео участника — в его плитку
+      if (!document.getElementById('p-' + peerId)) addParticipantTile(peerId, roomMembers[peerId] || 'Участник');
+      attachGroupVideo(peerId, e.streams[0]);
+      e.track.onmute = () => detachGroupVideo(peerId);
+      e.track.onended = () => detachGroupVideo(peerId);
+      e.track.onunmute = () => attachGroupVideo(peerId, e.streams[0]);
+      return;
+    }
     let audio = document.getElementById('audio-' + peerId);
     if (!audio) {
       audio = document.createElement('audio');
@@ -860,7 +748,7 @@ function createGroupPC(peerId) {
     audio.muted = !roomSpeakerOn; // учитываем громкую связь
     audio.play().catch(() => {}); // iOS: явный запуск воспроизведения
     // подсветка «говорит» для этого участника
-    if (!document.getElementById('p-' + peerId)) addParticipantTile(peerId, 'Участник');
+    if (!document.getElementById('p-' + peerId)) addParticipantTile(peerId, roomMembers[peerId] || 'Участник');
     setupVoiceActivity(e.streams[0], peerId);
   };
   pc.onicecandidate = (e) => {
@@ -883,8 +771,31 @@ function addParticipantTile(id, label) {
   const el = document.createElement('div');
   el.className = 'participant';
   el.id = 'p-' + id;
-  el.innerHTML = `<div class="dot"><i class="fa-solid fa-user"></i></div><span>${label}</span>`;
+  // Видеослой поверх иконки: показывается, когда участник включает камеру
+  el.innerHTML =
+    `<div class="pvid-wrap">
+       <div class="dot"><i class="fa-solid fa-user"></i></div>
+       <video class="pvid" autoplay playsinline muted></video>
+     </div>
+     <span>${label}</span>`;
   box.appendChild(el);
+}
+// Показать видеопоток участника в его плитке
+function attachGroupVideo(id, stream) {
+  const tile = document.getElementById('p-' + id);
+  if (!tile) return;
+  const v = tile.querySelector('.pvid');
+  if (!v) return;
+  v.srcObject = stream;
+  v.play().catch(() => {});
+  tile.classList.add('has-video');
+}
+function detachGroupVideo(id) {
+  const tile = document.getElementById('p-' + id);
+  if (!tile) return;
+  const v = tile.querySelector('.pvid');
+  if (v) v.srcObject = null;
+  tile.classList.remove('has-video');
 }
 
 function removeParticipantTile(id) {
@@ -915,6 +826,10 @@ socket.on('group:joined', async ({ code, name, peers, isOwner }) => {
   resetTopicBar('group');
   resetRoomMic();
   resetRoomSpeaker();
+  resetRoomCam();
+  // Кнопка модерации — только для владельца комнаты
+  const manageBtn = document.getElementById('room-manage');
+  if (manageBtn) manageBtn.classList.toggle('hidden', !isRoomOwner);
   if (localStream) setupVoiceActivity(localStream, 'me');
 
   for (const p of peers) {
@@ -997,6 +912,7 @@ $('#room-speaker').addEventListener('click', () => {
 
 $('#room-leave').addEventListener('click', () => {
   flushCallStat('group');
+  stopGroupCam();
   socket.emit('group:leave');
   Object.keys(groupPeers).forEach((id) => {
     groupPeers[id].pc.close();
@@ -1027,6 +943,7 @@ document.querySelectorAll('[data-restart]').forEach((b) =>
   b.addEventListener('click', () => {
     const mode = b.dataset.restart;
     if (mode === 'voice') startVoiceSearch();
+    else if (mode === 'video') startVideoSearch();
     else startTextSearch();
   })
 );
@@ -1060,22 +977,29 @@ function endCurrentChat(msg) {
   if (currentMode === 'voice' && voicePeerId) {
     closeVoice();
     showVoiceEnded(msg);
+  } else if (currentMode === 'video' && videoPeerId) {
+    closeVideo();
+    showVideoEnded(msg);
   } else if (currentMode === 'text' && textPeerId) {
     textPeerId = null;
     showTextEnded(msg);
   }
 }
+// Событие остановки текущего режима (для сервера)
+function stopCurrentModeEvent() {
+  return currentMode === 'voice' ? 'voice:stop' : (currentMode === 'video' ? 'video:stop' : 'text:stop');
+}
 
 // Пожаловаться: сервер завершает чат для обоих
 $('#do-report').addEventListener('click', () => {
   socket.emit('report_user');
-  socket.emit(currentMode === 'voice' ? 'voice:stop' : 'text:stop');
+  socket.emit(stopCurrentModeEvent());
   endCurrentChat('Жалоба отправлена');
 });
 // Заблокировать: сервер добавит собеседника в чёрный список
 $('#do-block').addEventListener('click', () => {
   socket.emit('block_user');
-  socket.emit(currentMode === 'voice' ? 'voice:stop' : 'text:stop');
+  socket.emit(stopCurrentModeEvent());
   endCurrentChat('Пользователь заблокирован');
 });
 
@@ -1762,6 +1686,7 @@ function fillZodiac(sel, withAny) {
 }
 fillZodiac(document.getElementById('pf-zodiac'), false);
 fillZodiac(document.getElementById('voice-fzodiac'), true);
+fillZodiac(document.getElementById('video-fzodiac'), true);
 fillZodiac(document.getElementById('text-fzodiac'), true);
 if (document.getElementById('pf-zodiac')) document.getElementById('pf-zodiac').value = profile.zodiac || 'Овен';
 
@@ -1806,6 +1731,7 @@ function fillFilterInterests(boxId) {
   });
 }
 fillFilterInterests('voice-fint');
+fillFilterInterests('video-fint');
 fillFilterInterests('text-fint');
 
 // ---------- Аватар ----------
@@ -1881,13 +1807,16 @@ document.getElementById('prev-connect').addEventListener('click', () => {
   document.getElementById('preview-modal').classList.add('hidden');
   if (!pendingMatch) return;
   const m = pendingMatch; pendingMatch = null;
-  if (m.mode === 'voice') proceedVoiceMatch(m.data); else proceedTextMatch(m.data);
+  if (m.mode === 'voice') proceedVoiceMatch(m.data);
+  else if (m.mode === 'video') proceedVideoMatch(m.data);
+  else proceedTextMatch(m.data);
 });
 document.getElementById('prev-skip').addEventListener('click', () => {
   document.getElementById('preview-modal').classList.add('hidden');
   if (!pendingMatch) return;
   const m = pendingMatch; pendingMatch = null;
   if (m.mode === 'voice') { socket.emit('voice:stop'); setTimeout(startVoiceSearch, 100); }
+  else if (m.mode === 'video') { socket.emit('video:stop'); setTimeout(startVideoSearch, 100); }
   else { socket.emit('text:stop'); setTimeout(startTextSearch, 100); }
 });
 
@@ -2104,6 +2033,7 @@ if (openProfileRow) openProfileRow.addEventListener('click', () => {
 function flushCallStat(mode) {
   let start = 0;
   if (mode === 'voice') { start = voiceCallStart; voiceCallStart = 0; }
+  else if (mode === 'video') { start = videoCallStart; videoCallStart = 0; }
   else if (mode === 'text') { start = textChatStart; textChatStart = 0; }
   else if (mode === 'group') { start = groupStart; groupStart = 0; }
   if (!start) return;
@@ -2321,3 +2251,249 @@ function uploadPhoto(dataUrl) {
   }).catch(() => { localStorage.setItem('vt_geo_done', '1'); });
 })();
 
+
+/* ==========================================================================
+   ЭТАП 6 (Фаза 2): ВИДЕОЧАТ (1 на 1) и групповое видео
+   ========================================================================== */
+
+// ---------- ВИДЕОЧАТ 1-на-1 ----------
+let videoPC = null;
+let videoPeerId = null;
+let videoNeg = { polite: false, makingOffer: false, ignoreOffer: false };
+let videoLocalStream = null;   // свой поток (аудио + видео)
+let videoFacing = 'user';      // 'user' — фронтальная | 'environment' — тыловая
+
+async function getVideoMedia(facing) {
+  return navigator.mediaDevices.getUserMedia({
+    audio: true,
+    video: { facingMode: { ideal: facing || 'user' } },
+  });
+}
+
+// Зеркалим ТОЛЬКО фронтальную камеру в своём окне; тыловую — без зеркала.
+// Видео собеседника не зеркалим никогда.
+function applyLocalMirror() {
+  const v = document.getElementById('video-local-video');
+  if (v) v.style.transform = videoFacing === 'user' ? 'scaleX(-1)' : 'none';
+}
+function showLocalPreview() {
+  const v = document.getElementById('video-local-video');
+  if (v && videoLocalStream) { v.srcObject = videoLocalStream; v.play().catch(() => {}); }
+}
+
+function createVideoPC(peerId) {
+  const pc = new RTCPeerConnection(RTC_CONFIG);
+  if (videoLocalStream) videoLocalStream.getTracks().forEach((t) => pc.addTrack(t, videoLocalStream));
+  pc.ontrack = (e) => {
+    const stage = document.getElementById('video-visual');
+    if (e.track.kind === 'video') {
+      const v = document.getElementById('video-remote-video');
+      v.srcObject = e.streams[0];
+      v.play().catch(() => {});
+      const show = () => stage && stage.classList.add('has-remote');
+      const hide = () => stage && stage.classList.remove('has-remote');
+      show(); // показываем сразу, как только пришла видеодорожка собеседника
+      e.track.onunmute = show; e.track.onmute = hide; e.track.onended = hide;
+    } else {
+      const a = document.getElementById('video-audio');
+      a.srcObject = e.streams[0]; a.muted = false; a.playsInline = true;
+      a.play().catch(() => {});
+    }
+  };
+  pc.onicecandidate = (e) => {
+    if (e.candidate) socket.emit('signal', { to: peerId, data: { candidate: e.candidate } });
+  };
+  return pc;
+}
+
+async function startVideoSearch() {
+  try { if (!videoLocalStream) videoLocalStream = await getVideoMedia(videoFacing); }
+  catch (e) { toast('Нет доступа к камере или микрофону'); return; }
+  showLocalPreview(); applyLocalMirror();
+  const f = getFilters('video');
+  $('#video-search-info').innerHTML =
+    `<span class="sline"><span class="cflag">${RF_FLAG}</span> Российская Федерация</span><span class="sline">${ageRangeText(f.ages)}</span>`;
+  showScreen('video', 'searching');
+  startTimer('videoSearch', '#video-search-timer');
+  socket.emit('video:start', f);
+}
+$('#video-start').addEventListener('click', startVideoSearch);
+
+$('#video-cancel').addEventListener('click', () => {
+  socket.emit('video:stop');
+  stopTimer('videoSearch');
+  stopVideoLocal();
+  showScreen('video', 'setup');
+});
+
+$('#video-end').addEventListener('click', () => {
+  socket.emit('video:stop');
+  closeVideo();
+  showVideoEnded('Вы завершили видеочат');
+});
+
+// Микрофон
+$('#video-mute').addEventListener('click', () => {
+  if (!videoLocalStream) return;
+  const t = videoLocalStream.getAudioTracks()[0]; if (!t) return;
+  t.enabled = !t.enabled;
+  const btn = $('#video-mute');
+  btn.classList.toggle('muted', !t.enabled);
+  btn.innerHTML = t.enabled ? '<i class="fa-solid fa-microphone"></i>' : '<i class="fa-solid fa-microphone-slash"></i>';
+});
+
+// Камера вкл/выкл (своя видеодорожка)
+$('#video-cam').addEventListener('click', () => {
+  if (!videoLocalStream) return;
+  const t = videoLocalStream.getVideoTracks()[0]; if (!t) return;
+  t.enabled = !t.enabled;
+  const btn = $('#video-cam');
+  btn.classList.toggle('muted', !t.enabled);
+  btn.innerHTML = t.enabled ? '<i class="fa-solid fa-video"></i>' : '<i class="fa-solid fa-video-slash"></i>';
+  const stage = document.getElementById('video-visual');
+  if (stage) stage.classList.toggle('cam-off', !t.enabled);
+});
+
+// Перевернуть камеру (фронтальная ⇄ тыловая) с корректным зеркалированием
+$('#video-flip').addEventListener('click', async () => {
+  if (!videoLocalStream) return;
+  const btn = $('#video-flip'); btn.disabled = true;
+  const target = videoFacing === 'user' ? 'environment' : 'user';
+  let vs;
+  try { vs = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: target } } }); }
+  catch (e) { toast('Вторая камера недоступна'); btn.disabled = false; return; }
+  const newTrack = vs.getVideoTracks()[0];
+  const oldTrack = videoLocalStream.getVideoTracks()[0];
+  if (videoPC) {
+    const sender = videoPC.getSenders().find((s) => s.track && s.track.kind === 'video');
+    if (sender) { try { await sender.replaceTrack(newTrack); } catch (e) {} }
+  }
+  if (oldTrack) { try { videoLocalStream.removeTrack(oldTrack); } catch (e) {} oldTrack.stop(); }
+  videoLocalStream.addTrack(newTrack);
+  videoFacing = target;
+  showLocalPreview(); applyLocalMirror();
+  btn.disabled = false;
+  toast(videoFacing === 'user' ? 'Фронтальная камера' : 'Тыловая камера');
+});
+
+socket.on('video:none', () => toast('Собеседников пока нет'));
+socket.on('video:matched', (data) => {
+  if (shouldPreview()) { showPreview('video', data); return; }
+  proceedVideoMatch(data);
+});
+socket.on('video:matched', () => maybeNotify('Собеседник найден!', 'Вас ждут в видеочате'));
+
+async function proceedVideoMatch({ peerId, initiator, partner }) {
+  videoPeerId = peerId;
+  currentMode = 'video';
+  videoNeg = { polite: !initiator, makingOffer: false, ignoreOffer: false };
+  try { if (!videoLocalStream) videoLocalStream = await getVideoMedia(videoFacing); }
+  catch (e) { toast('Нет доступа к камере'); }
+  showLocalPreview(); applyLocalMirror();
+  videoPC = createVideoPC(peerId);
+  stopTimer('videoSearch');
+  $('#video-peer-name').textContent = 'Видеочат с ' + (partner.nick || 'собеседником');
+  $('#video-peer-info').innerHTML = peerInfoHTML(partner);
+  const rl = $('#video-remote-label'); if (rl) rl.textContent = partner.nick || 'Собеседник';
+  $('#video-mute').classList.remove('muted'); $('#video-mute').innerHTML = '<i class="fa-solid fa-microphone"></i>';
+  $('#video-cam').classList.remove('muted'); $('#video-cam').innerHTML = '<i class="fa-solid fa-video"></i>';
+  const stage = document.getElementById('video-visual'); if (stage) stage.classList.remove('cam-off');
+  showScreen('video', 'call');
+  startTimer('videoCall', '#video-timer');
+  videoCallStart = Date.now();
+  resetTopicBar('video');
+  if (initiator) {
+    const offer = await videoPC.createOffer();
+    await videoPC.setLocalDescription(offer);
+    socket.emit('signal', { to: peerId, data: { sdp: videoPC.localDescription } });
+  }
+}
+
+function stopVideoLocal() {
+  if (videoLocalStream) { videoLocalStream.getTracks().forEach((t) => t.stop()); videoLocalStream = null; }
+  const lv = document.getElementById('video-local-video'); if (lv) lv.srcObject = null;
+}
+function closeVideo() {
+  flushCallStat('video');
+  stopTimer('videoCall');
+  if (videoPC) { videoPC.close(); videoPC = null; }
+  videoPeerId = null;
+  stopVideoLocal();
+  const rv = document.getElementById('video-remote-video'); if (rv) rv.srcObject = null;
+  const a = document.getElementById('video-audio'); if (a) a.srcObject = null;
+  const stage = document.getElementById('video-visual'); if (stage) stage.classList.remove('has-remote', 'cam-off');
+}
+function showVideoEnded(msg) {
+  stopTimer('videoCall'); stopTimer('videoSearch');
+  $('#video-ended-msg').textContent = msg;
+  showScreen('video', 'ended');
+}
+
+// ---------- ГРУППОВОЕ ВИДЕО ----------
+let groupCamOn = false;
+let groupCamStream = null;     // MediaStream с видеодорожкой камеры для группы
+let groupFacing = 'user';
+
+function setRoomCamBtn(on) {
+  const btn = document.getElementById('room-cam');
+  if (!btn) return;
+  btn.classList.toggle('cam-on', on);
+  btn.innerHTML = on ? '<i class="fa-solid fa-video"></i>' : '<i class="fa-solid fa-video-slash"></i>';
+}
+function resetRoomCam() {
+  groupCamOn = false;
+  if (groupCamStream) { groupCamStream.getTracks().forEach((t) => t.stop()); groupCamStream = null; }
+  detachGroupVideo('me');
+  setRoomCamBtn(false);
+}
+// Показать своё видео в собственной плитке (зеркалим фронтальную)
+function showOwnGroupVideo() {
+  const tile = document.getElementById('p-me');
+  if (!tile || !groupCamStream) return;
+  const v = tile.querySelector('.pvid');
+  if (v) {
+    v.srcObject = groupCamStream;
+    v.style.transform = groupFacing === 'user' ? 'scaleX(-1)' : 'none';
+    v.play().catch(() => {});
+  }
+  tile.classList.add('has-video');
+}
+async function stopGroupCam() {
+  if (!groupCamOn) return;
+  const track = groupCamStream && groupCamStream.getVideoTracks()[0];
+  for (const id in groupPeers) {
+    const gp = groupPeers[id];
+    const sender = gp.pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+    if (sender) { try { gp.pc.removeTrack(sender); } catch (e) {} await renegotiate(gp.pc, id, gp); }
+  }
+  if (track) track.stop();
+  groupCamStream = null;
+  groupCamOn = false;
+  detachGroupVideo('me');
+  setRoomCamBtn(false);
+}
+
+const roomCamBtn = document.getElementById('room-cam');
+if (roomCamBtn) roomCamBtn.addEventListener('click', async () => {
+  if (!groupCode) return;
+  const btn = roomCamBtn; btn.disabled = true;
+  try {
+    if (!groupCamOn) {
+      try { groupCamStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: groupFacing } } }); }
+      catch (e) { toast('Нет доступа к камере'); return; }
+      const track = groupCamStream.getVideoTracks()[0];
+      for (const id in groupPeers) {
+        const gp = groupPeers[id];
+        gp.pc.addTrack(track, groupCamStream);
+        await renegotiate(gp.pc, id, gp);
+      }
+      groupCamOn = true;
+      setRoomCamBtn(true);
+      showOwnGroupVideo();
+      toast('Камера включена');
+    } else {
+      await stopGroupCam();
+      toast('Камера выключена');
+    }
+  } finally { btn.disabled = false; }
+});

@@ -103,19 +103,12 @@
             <button class="icon-btn call-icon" data-rules title="Правила"><i class="fa-solid fa-circle-exclamation"></i></button>
           </div>
           <div class="call-timer" id="voice-timer">00:00</div>
-          <div class="call-visual" id="voice-visual">
-            <!-- Плитка собеседника: видео или иконка пользователя (если видео нет) -->
+          <!-- Голосовой чат: только аудио, без видео -->
+          <div class="call-visual audio-only" id="voice-visual">
             <div class="call-tile call-tile-remote">
               <div class="call-pulse"></div>
               <i class="call-fallback fa-solid fa-user"></i>
-              <video id="voice-remote-video" class="call-video" autoplay playsinline></video>
               <span class="call-tile-label" id="voice-remote-label">Собеседник</span>
-            </div>
-            <!-- Своя плитка: видео при включённой камере, иначе иконка пользователя -->
-            <div class="call-tile call-tile-local" id="voice-local-tile">
-              <i class="call-fallback fa-solid fa-user"></i>
-              <video id="voice-local-video" class="call-video-self" autoplay playsinline muted></video>
-              <span class="call-tile-label">Вы</span>
             </div>
           </div>
           <h3 class="call-title" id="voice-peer-name">Собеседник</h3>
@@ -128,8 +121,6 @@
             <button class="round-btn" id="voice-mute" title="Микрофон"><i class="fa-solid fa-microphone"></i></button>
             <button class="round-btn round-btn-end" id="voice-end" title="Завершить"><i class="fa-solid fa-phone-slash"></i></button>
             <button class="round-btn" id="voice-speaker" title="Динамик"><i class="fa-solid fa-volume-high"></i></button>
-            <button class="round-btn" id="voice-cam" title="Камера"><i class="fa-solid fa-video-slash"></i></button>
-            <button class="round-btn" id="voice-flip" title="Перевернуть камеру" disabled><i class="fa-solid fa-camera-rotate"></i></button>
           </div>
           <audio id="voice-audio" autoplay playsinline></audio>
         </div>
@@ -140,6 +131,116 @@
           <h3 class="call-title" id="voice-ended-msg">Вы завершили диалог</h3>
           <button class="btn btn-primary btn-big" data-restart="voice">Начать разговор</button>
           <button class="btn btn-ghost btn-big" data-change="voice">Изменить параметры</button>
+        </div>
+      </section>
+
+      <!-- ============ ВКЛАДКА: ВИДЕОЧАТ ============ -->
+      <section class="panel" id="panel-video">
+        <!-- Экран настройки фильтров -->
+        <div id="video-setup">
+          <div class="card">
+            <div class="card-label">Город собеседника</div>
+            <div class="city-select">
+              <i class="fa-solid fa-location-dot city-icon"></i>
+              <input type="text" id="video-city" class="city-input" placeholder="Начните вводить город" autocomplete="off" />
+              <div class="city-dropdown hidden" id="video-city-list"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-label">Пол собеседника</div>
+            <div class="chips" id="video-gender" data-single-any="true">
+              <button class="chip active" data-value="any">Любой</button>
+              <button class="chip" data-value="female">Женский</button>
+              <button class="chip" data-value="male">Мужской</button>
+            </div>
+
+            <div class="card-label mt">Возраст собеседника</div>
+            <div class="chips" id="video-age">
+              <button class="chip active" data-value="18-24">от 18 до 24 лет</button>
+              <button class="chip" data-value="25-32">от 25 до 32 лет</button>
+              <button class="chip" data-value="33">старше 33 лет</button>
+            </div>
+          </div>
+          <p class="hint">Можно несколько</p>
+
+          <!-- Расширенные фильтры (премиум) -->
+          <div class="card prem-filter" data-premfilter="video">
+            <div class="card-label prem-filter-head">
+              <span><i class="fa-solid fa-crown"></i> Расширенные фильтры</span>
+              <span class="prem-filter-lock" title="Только для Premium"><i class="fa-solid fa-lock"></i></span>
+            </div>
+            <div class="prem-filter-body">
+              <div class="sub-label">Интересы собеседника</div>
+              <div class="chips-wrap" id="video-fint"></div>
+              <div class="sub-label mt">Знак зодиака</div>
+              <select id="video-fzodiac" class="s-input"></select>
+            </div>
+          </div>
+
+          <button class="btn btn-primary btn-big" id="video-start">
+            <i class="fa-solid fa-video"></i> Начать видеочат
+          </button>
+
+          <p class="online">
+            <i class="fa-solid fa-circle online-dot"></i>
+            <span id="video-online">—</span>
+          </p>
+        </div>
+
+        <!-- Экран поиска собеседника -->
+        <div class="call-screen hidden" id="video-searching">
+          <div class="call-timer" id="video-search-timer">00:00</div>
+          <div class="search-visual voice">
+            <div class="search-ring"></div>
+            <i class="fa-solid fa-video"></i>
+          </div>
+          <h3 class="call-title">Поиск собеседника…</h3>
+          <p class="peer-info" id="video-search-info"></p>
+          <button class="btn btn-ghost btn-big call-bottom-btn" id="video-cancel">Отменить</button>
+        </div>
+
+        <!-- Экран активного видеозвонка -->
+        <div class="call-screen hidden" id="video-call">
+          <div class="call-top-actions">
+            <button class="icon-btn call-icon" data-report title="Пожаловаться"><i class="fa-solid fa-gavel"></i></button>
+            <button class="icon-btn call-icon" data-rules title="Правила"><i class="fa-solid fa-circle-exclamation"></i></button>
+          </div>
+          <div class="call-timer" id="video-timer">00:00</div>
+          <div class="video-stage" id="video-visual">
+            <!-- Видео собеседника -->
+            <div class="video-tile video-remote">
+              <i class="call-fallback fa-solid fa-user"></i>
+              <video id="video-remote-video" class="call-video" autoplay playsinline></video>
+              <span class="call-tile-label" id="video-remote-label">Собеседник</span>
+            </div>
+            <!-- Своё видео (картинка-в-картинке) -->
+            <div class="video-tile video-local">
+              <video id="video-local-video" class="call-video-self" autoplay playsinline muted></video>
+              <span class="call-tile-label">Вы</span>
+            </div>
+          </div>
+          <h3 class="call-title" id="video-peer-name">Собеседник</h3>
+          <p class="peer-info" id="video-peer-info"></p>
+          <div class="topic-bar" data-topic="video">
+            <span class="topic-text">Нажмите «Подобрать тему», чтобы начать разговор</span>
+            <button type="button" class="btn btn-ghost btn-sm topic-btn"><i class="fa-solid fa-shuffle"></i> Подобрать тему</button>
+          </div>
+          <div class="call-controls">
+            <button class="round-btn" id="video-mute" title="Микрофон"><i class="fa-solid fa-microphone"></i></button>
+            <button class="round-btn round-btn-end" id="video-end" title="Завершить"><i class="fa-solid fa-phone-slash"></i></button>
+            <button class="round-btn" id="video-cam" title="Камера"><i class="fa-solid fa-video"></i></button>
+            <button class="round-btn" id="video-flip" title="Перевернуть камеру"><i class="fa-solid fa-camera-rotate"></i></button>
+          </div>
+          <audio id="video-audio" autoplay playsinline></audio>
+        </div>
+
+        <!-- Экран завершения -->
+        <div class="call-screen ended hidden" id="video-ended">
+          <div class="ended-icon"><i class="fa-solid fa-video-slash"></i></div>
+          <h3 class="call-title" id="video-ended-msg">Вы завершили видеочат</h3>
+          <button class="btn btn-primary btn-big" data-restart="video">Начать видеочат</button>
+          <button class="btn btn-ghost btn-big" data-change="video">Изменить параметры</button>
         </div>
       </section>
 
@@ -279,13 +380,16 @@
             </div>
             <div class="room-actions">
               <button class="round-btn room-mic" id="room-mute" title="Микрофон"><i class="fa-solid fa-microphone"></i></button>
+              <button class="round-btn room-mic" id="room-cam" title="Камера"><i class="fa-solid fa-video-slash"></i></button>
               <button class="round-btn room-mic" id="room-speaker" title="Громкая связь"><i class="fa-solid fa-volume-high"></i></button>
+              <button class="round-btn room-mic hidden" id="room-manage" title="Управление участниками"><i class="fa-solid fa-shield-halved"></i></button>
               <button class="btn btn-danger btn-sm" id="room-leave">
                 <i class="fa-solid fa-right-from-bracket"></i> Выйти
               </button>
             </div>
           </div>
           <div class="mic-hint" id="room-mic-hint">Микрофон включён — говорите</div>
+          <div class="moderate-panel hidden" id="moderate-panel"></div>
           <div class="topic-bar" data-topic="group">
             <span class="topic-text">Подберите тему для общей беседы</span>
             <button type="button" class="btn btn-ghost btn-sm topic-btn"><i class="fa-solid fa-shuffle"></i> Тема</button>
@@ -423,6 +527,10 @@
       <button class="nav-tab active" data-tab="voice">
         <span class="nav-icon"><i class="fa-solid fa-microphone"></i></span>
         <span class="nav-label">Голосовой чат</span>
+      </button>
+      <button class="nav-tab" data-tab="video">
+        <span class="nav-icon"><i class="fa-solid fa-video"></i></span>
+        <span class="nav-label">Видеочат</span>
       </button>
       <button class="nav-tab" data-tab="group">
         <span class="nav-icon"><i class="fa-solid fa-user-group"></i></span>

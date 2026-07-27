@@ -131,6 +131,7 @@ const users = new Map();
 // Очереди ожидания подбора собеседника (хранят socket.id)
 const voiceQueue = []; // ждут голосового собеседника
 const textQueue = [];  // ждут текстового собеседника
+const videoQueue = []; // ждут видео-собеседника
 
 // groups: code -> объект групповой комнаты
 //   { code, name, open, max, members: Set<socket.id> }
@@ -139,6 +140,7 @@ const groups = new Map();
 // Наборы активных участников по режимам — нужны для онлайн-счётчиков
 const voiceActive = new Set(); // кто сейчас ищет или разговаривает голосом
 const textActive = new Set();  // кто сейчас ищет или переписывается
+const videoActive = new Set(); // кто сейчас ищет или разговаривает по видео
 
 // ============================================================================
 //  ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -274,10 +276,10 @@ function removeFromQueue(queue, id) {
 //  ЛОГИКА ПОДБОРА СОБЕСЕДНИКА (1 на 1) — общая для голоса и текста
 // ============================================================================
 
-// mode = 'voice' | 'text'
+// mode = 'voice' | 'text' | 'video'
 function tryMatch(socket, mode) {
   const me = users.get(socket.id);
-  const queue = mode === 'voice' ? voiceQueue : textQueue;
+  const queue = mode === 'voice' ? voiceQueue : (mode === 'video' ? videoQueue : textQueue);
 
   // Ищем в очереди первого совместимого кандидата
   for (let i = 0; i < queue.length; i++) {
@@ -524,6 +526,26 @@ io.on('connection', (socket) => {
     broadcastCounts();
   });
 
+  // ---------- ВИДЕОЧАТ (1 на 1) — тот же подбор, но с видео ----------
+  socket.on('video:start', (filters) => {
+    const me = users.get(socket.id);
+    if (!me) return;
+    applyFilters(me, filters);
+    me.mode = 'video';
+    videoActive.add(socket.id);
+    broadcastCounts();
+    tryMatch(socket, 'video');
+  });
+
+  socket.on('video:stop', () => {
+    removeFromQueue(videoQueue, socket.id);
+    endOneToOne(socket);
+    videoActive.delete(socket.id);
+    const me = users.get(socket.id);
+    if (me) me.mode = null;
+    broadcastCounts();
+  });
+
   // ---------- ТЕКСТОВЫЙ ЧАТ (1 на 1) ----------
 
   socket.on('text:start', (filters) => {
@@ -750,10 +772,12 @@ io.on('connection', (socket) => {
     // Чистим очереди и связи
     removeFromQueue(voiceQueue, socket.id);
     removeFromQueue(textQueue, socket.id);
+    removeFromQueue(videoQueue, socket.id);
     endOneToOne(socket);
     leaveGroup(socket);
     voiceActive.delete(socket.id);
     textActive.delete(socket.id);
+    videoActive.delete(socket.id);
     users.delete(socket.id);
     broadcastCounts();
   });
