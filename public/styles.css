@@ -1511,3 +1511,48 @@ textarea.s-input { resize: vertical; font-family: inherit; }
 .mod-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; }
 .mod-row .mod-btns { display: flex; gap: 6px; }
 .moderate-panel .empty-note { color: var(--muted); font-size: 13px; text-align: center; padding: 8px; }
+
+/* ==========================================================================
+   Вкладка «Статистика» (уровни, XP, челленджи, ачивки, лидерборд)
+   ========================================================================== */
+.stats-h { font-size: 22px; margin: 4px 0 16px; display: flex; align-items: center; gap: 10px; }
+.stats-h i { color: var(--gold); }
+
+.level-card { padding: 16px; }
+.level-top { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.level-badge.lg { font-size: 16px; padding: 8px 16px; }
+.level-info { display: flex; flex-direction: column; }
+.level-info b { font-size: 18px; }
+.level-info small { color: var(--muted); font-size: 12px; }
+
+/* Челленджи */
+.challenge { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.challenge:last-child { border-bottom: none; }
+.ch-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; }
+.ch-bar { height: 7px; background: var(--card-2); border-radius: 6px; overflow: hidden; margin: 7px 0 4px; }
+.ch-bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--indigo), var(--green)); border-radius: 6px; }
+.ch-prog { font-size: 12px; color: var(--muted); }
+.ch-reward { color: var(--gold); font-weight: 700; font-size: 13px; white-space: nowrap; }
+.ch-claimed { color: var(--green); font-weight: 600; font-size: 13px; white-space: nowrap; }
+
+/* Достижения */
+.ach-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.ach { background: var(--card-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px 8px; text-align: center; opacity: 0.55; }
+.ach.unlocked { opacity: 1; border-color: var(--gold); }
+.ach-ic { font-size: 26px; color: var(--muted); margin-bottom: 6px; }
+.ach.unlocked .ach-ic { color: var(--gold); }
+.ach-name { font-size: 12px; font-weight: 600; line-height: 1.2; }
+.ach-prog { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+/* Таблица лидеров */
+.leaderboard { display: flex; flex-direction: column; gap: 6px; }
+.lb-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--card-2); border-radius: 10px; font-size: 14px; }
+.lb-rank { width: 22px; text-align: center; font-weight: 700; color: var(--muted); }
+.lb-row.top1 .lb-rank { color: var(--gold); }
+.lb-row.top2 .lb-rank { color: #c0c6d4; }
+.lb-row.top3 .lb-rank { color: #cd7f32; }
+.lb-nick { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-lvl { color: var(--muted); font-size: 12px; }
+.lb-xp { font-weight: 700; color: var(--indigo); }
+
+.empty-note { color: var(--muted); font-size: 13px; text-align: center; padding: 10px; }

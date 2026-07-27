@@ -83,7 +83,58 @@ db.exec(`
     createdAt INTEGER
   );
   CREATE INDEX IF NOT EXISTS idx_reactions_msg ON reactions(msgId);
+
+  -- Статистика пользователя (отдельная таблица под вкладку «Статистика»)
+  CREATE TABLE IF NOT EXISTS user_stats (
+    user_id       TEXT PRIMARY KEY,
+    total_minutes INTEGER DEFAULT 0,
+    total_calls   INTEGER DEFAULT 0,
+    xp            INTEGER DEFAULT 0,
+    level         INTEGER DEFAULT 1
+  );
+
+  -- Справочник достижений (ачивок)
+  CREATE TABLE IF NOT EXISTS achievements (
+    id             INTEGER PRIMARY KEY,
+    name           TEXT,
+    description    TEXT,
+    icon           TEXT,
+    condition_type TEXT,      -- 'calls' | 'minutes' | 'level'
+    condition_value INTEGER
+  );
+
+  -- Полученные пользователями достижения
+  CREATE TABLE IF NOT EXISTS user_achievements (
+    user_id        TEXT,
+    achievement_id INTEGER,
+    unlocked_at    INTEGER,
+    PRIMARY KEY (user_id, achievement_id)
+  );
+
+  -- Выполненные дневные челленджи (чтобы бонус давался один раз в день)
+  CREATE TABLE IF NOT EXISTS challenge_claims (
+    user_id    TEXT,
+    day        TEXT,          -- YYYY-MM-DD
+    kind       TEXT,          -- 'minutes' | 'calls'
+    claimed_at INTEGER,
+    PRIMARY KEY (user_id, day, kind)
+  );
 `);
+
+// Справочник достижений — фиксированный список (сид при старте)
+const ACHIEVEMENTS = [
+  { id: 1, name: 'Первый разговор', description: 'Проведите свой первый разговор', icon: 'fa-comment-dots', condition_type: 'calls', condition_value: 1 },
+  { id: 2, name: 'Разговорчивый', description: '10 разговоров', icon: 'fa-comments', condition_type: 'calls', condition_value: 10 },
+  { id: 3, name: 'Легенда общения', description: '100 разговоров', icon: 'fa-crown', condition_type: 'calls', condition_value: 100 },
+  { id: 4, name: 'Час в эфире', description: '100 минут в чате', icon: 'fa-clock', condition_type: 'minutes', condition_value: 100 },
+  { id: 5, name: 'Марафонец', description: '500 минут в чате', icon: 'fa-hourglass-half', condition_type: 'minutes', condition_value: 500 },
+  { id: 6, name: 'Восходящая звезда', description: 'Достигните 5 уровня', icon: 'fa-star', condition_type: 'level', condition_value: 5 },
+  { id: 7, name: 'Мастер общения', description: 'Достигните 10 уровня', icon: 'fa-medal', condition_type: 'level', condition_value: 10 },
+];
+(function seedAchievements() {
+  const up = db.prepare('INSERT OR REPLACE INTO achievements (id, name, description, icon, condition_type, condition_value) VALUES (?, ?, ?, ?, ?, ?)');
+  for (const a of ACHIEVEMENTS) up.run(a.id, a.name, a.description, a.icon, a.condition_type, a.condition_value);
+})();
 
 // Миграция: добавляем новые колонки в уже существующую базу (без потери данных)
 for (const col of [
@@ -143,6 +194,39 @@ const stmts = {
   bumpStats: db.prepare(
     `UPDATE users SET convCount = convCount + 1, totalDuration = totalDuration + ?,
        points = points + ?, level = ? WHERE id = ?`
+  ),
+  addXp: db.prepare('UPDATE users SET points = points + ?, level = ? WHERE id = ?'),
+  // Зеркало статистики в отдельную таблицу user_stats (по ТЗ)
+  upsertUserStats: db.prepare(
+    `INSERT INTO user_stats (user_id, total_minutes, total_calls, xp, level)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET
+         total_minutes = excluded.total_minutes,
+         total_calls   = excluded.total_calls,
+         xp            = excluded.xp,
+         level         = excluded.level`
+  ),
+  // Таблица лидеров: топ по XP (ник берём из users)
+  leaderboard: db.prepare(
+    `SELECT s.user_id AS id, s.xp AS xp, s.level AS level, s.total_calls AS calls,
+            COALESCE(NULLIF(u.nick, ''), 'Аноним') AS nick
+       FROM user_stats s LEFT JOIN users u ON u.id = s.user_id
+       ORDER BY s.xp DESC, s.total_calls DESC LIMIT 10`
+  ),
+
+  // --- Достижения ---
+  allAchievements: db.prepare('SELECT * FROM achievements ORDER BY id'),
+  userAchievements: db.prepare('SELECT achievement_id, unlocked_at FROM user_achievements WHERE user_id = ?'),
+  unlockAchievement: db.prepare(
+    'INSERT OR IGNORE INTO user_achievements (user_id, achievement_id, unlocked_at) VALUES (?, ?, ?)'
+  ),
+
+  // --- Дневные челленджи ---
+  getClaim: db.prepare('SELECT 1 AS ok FROM challenge_claims WHERE user_id = ? AND day = ? AND kind = ?'),
+  addClaim: db.prepare('INSERT OR IGNORE INTO challenge_claims (user_id, day, kind, claimed_at) VALUES (?, ?, ?, ?)'),
+  // Активность за сегодня (для прогресса челленджей): call-события с длительностью
+  callsSince: db.prepare(
+    `SELECT info, createdAt FROM activity_logs WHERE userId = ? AND type = 'call' AND createdAt >= ?`
   ),
 
   // --- Реакции на сообщения ---
@@ -262,6 +346,14 @@ function levelForPoints(points) {
   return level;
 }
 
+// Синхронизировать зеркальную таблицу user_stats из users
+function syncUserStats(u) {
+  if (!u) return;
+  stmts.upsertUserStats.run(
+    u.id, Math.floor((u.totalDuration || 0) / 60), u.convCount || 0, u.points || 0, u.level || 1
+  );
+}
+
 // Зафиксировать завершённый разговор: +1 к счётчику, +длительность (сек),
 // начислить очки (10 за разговор + 1 за каждую полную минуту) и пересчитать уровень.
 function recordConversation(id, durationSec) {
@@ -272,18 +364,134 @@ function recordConversation(id, durationSec) {
   const points = (u.points || 0) + gained;
   const level = levelForPoints(points);
   stmts.bumpStats.run(dur, gained, level, id);
+  syncUserStats(getUser(id));
   return { convCount: (u.convCount || 0) + 1, totalDuration: (u.totalDuration || 0) + dur, points, level };
 }
 
-// Статистика для профиля пользователя
+// Начислить XP напрямую (бонусы челленджей); пересчитать уровень
+function addXp(id, amount) {
+  const u = getUser(id);
+  if (!u) return null;
+  const points = (u.points || 0) + Math.max(0, parseInt(amount, 10) || 0);
+  const level = levelForPoints(points);
+  stmts.addXp.run(Math.max(0, parseInt(amount, 10) || 0), level, id);
+  syncUserStats(getUser(id));
+  return { points, level };
+}
+
+// Статистика для профиля/вкладки. xp = points (для совместимости).
 function getUserStats(id) {
   const u = getUser(id);
-  if (!u) return { convCount: 0, totalDuration: 0, points: 0, level: 1 };
+  if (!u) return { convCount: 0, totalDuration: 0, points: 0, xp: 0, level: 1 };
+  const level = u.level || levelForPoints(u.points || 0);
   return {
     convCount: u.convCount || 0,
     totalDuration: u.totalDuration || 0,
     points: u.points || 0,
-    level: u.level || levelForPoints(u.points || 0),
+    xp: u.points || 0,
+    level,
+  };
+}
+
+// --- Достижения ---
+// Проверить и разблокировать новые достижения; вернуть список новых
+function checkAchievements(id) {
+  const u = getUser(id);
+  if (!u) return [];
+  const minutes = Math.floor((u.totalDuration || 0) / 60);
+  const have = new Set(stmts.userAchievements.all(id).map((r) => r.achievement_id));
+  const newly = [];
+  for (const a of stmts.allAchievements.all()) {
+    if (have.has(a.id)) continue;
+    let ok = false;
+    if (a.condition_type === 'calls') ok = (u.convCount || 0) >= a.condition_value;
+    else if (a.condition_type === 'minutes') ok = minutes >= a.condition_value;
+    else if (a.condition_type === 'level') ok = (u.level || 1) >= a.condition_value;
+    if (ok) { stmts.unlockAchievement.run(id, a.id, Date.now()); newly.push(a); }
+  }
+  return newly;
+}
+// Все достижения со статусом разблокировки и прогрессом
+function getAchievements(id) {
+  const u = getUser(id) || {};
+  const minutes = Math.floor((u.totalDuration || 0) / 60);
+  const have = new Map(stmts.userAchievements.all(id).map((r) => [r.achievement_id, r.unlocked_at]));
+  return stmts.allAchievements.all().map((a) => {
+    const cur = a.condition_type === 'calls' ? (u.convCount || 0)
+      : a.condition_type === 'minutes' ? minutes : (u.level || 1);
+    return {
+      id: a.id, name: a.name, description: a.description, icon: a.icon,
+      target: a.condition_value, progress: Math.min(cur, a.condition_value),
+      unlocked: have.has(a.id), unlockedAt: have.get(a.id) || null,
+    };
+  });
+}
+
+// Таблица лидеров (топ-10 по XP)
+function getLeaderboard() {
+  return stmts.leaderboard.all().map((r, i) => ({ rank: i + 1, nick: r.nick, xp: r.xp, level: r.level, calls: r.calls }));
+}
+
+// Прогресс за сегодня: минуты и разговоры (из activity_logs)
+function todayProgress(id) {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const rows = stmts.callsSince.all(id, start);
+  let minutes = 0;
+  rows.forEach((r) => { const sec = parseInt(String(r.info), 10) || 0; minutes += Math.floor(sec / 60); });
+  return { minutes, calls: rows.length };
+}
+function dayKey() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+// Описание дневных челленджей
+const CHALLENGES = [
+  { kind: 'minutes', name: 'Проведи 30 минут в чате сегодня', target: 30, reward: 50 },
+  { kind: 'calls', name: 'Проведи 3 разговора сегодня', target: 3, reward: 30 },
+];
+// Список челленджей с прогрессом и статусом получения
+function getChallenges(id) {
+  const prog = todayProgress(id);
+  const day = dayKey();
+  return CHALLENGES.map((c) => {
+    const cur = c.kind === 'minutes' ? prog.minutes : prog.calls;
+    const claimed = !!stmts.getClaim.get(id, day, c.kind);
+    return { kind: c.kind, name: c.name, target: c.target, progress: Math.min(cur, c.target), reward: c.reward, done: cur >= c.target, claimed };
+  });
+}
+// Забрать бонус за выполненный челлендж (один раз в день)
+function claimChallenge(id, kind) {
+  const c = CHALLENGES.find((x) => x.kind === kind);
+  if (!c) return { ok: false, error: 'Неизвестный челлендж' };
+  const prog = todayProgress(id);
+  const cur = c.kind === 'minutes' ? prog.minutes : prog.calls;
+  if (cur < c.target) return { ok: false, error: 'Челлендж ещё не выполнен' };
+  const day = dayKey();
+  if (stmts.getClaim.get(id, day, kind)) return { ok: false, error: 'Бонус уже получен' };
+  stmts.addClaim.run(id, day, kind, Date.now());
+  const st = addXp(id, c.reward);
+  return { ok: true, reward: c.reward, points: st ? st.points : 0, level: st ? st.level : 1 };
+}
+
+// Полная статистика для вкладки «Статистика»
+function getFullStats(id) {
+  const s = getUserStats(id);
+  const cur = 25 * (s.level - 1) * s.level;        // порог текущего уровня
+  const next = 25 * s.level * (s.level + 1);       // порог следующего уровня
+  return {
+    stats: {
+      totalMinutes: Math.floor(s.totalDuration / 60),
+      totalCalls: s.convCount,
+      xp: s.xp,
+      level: s.level,
+      curLevelXp: cur,
+      nextLevelXp: next,
+      toNext: Math.max(0, next - s.xp),
+    },
+    achievements: getAchievements(id),
+    challenges: getChallenges(id),
+    leaderboard: getLeaderboard(),
   };
 }
 
@@ -341,6 +549,13 @@ module.exports = {
   pruneMessages,
   recordConversation,
   getUserStats,
+  addXp,
+  checkAchievements,
+  getAchievements,
+  getLeaderboard,
+  getChallenges,
+  claimChallenge,
+  getFullStats,
   addReaction,
   getReactions,
   getAnalytics,

@@ -49,24 +49,6 @@ app.post('/api/upload', (req, res) => {
   }
 });
 
-// --- Определение города по IP (ip-api.com, ответ на русском) ---
-// Запрос идёт с сервера (server→ip-api по http), поэтому нет проблем смешанного
-// контента на https-сайте. Реальный IP берём из заголовка прокси (nginx).
-app.get('/api/geo', async (req, res) => {
-  try {
-    const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-    const ip = fwd || req.socket.remoteAddress || '';
-    // Локальные адреса пропускаем — ip-api сам определит по IP запроса, если пусто
-    const clean = /^(127\.|::1|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip) ? '' : ip;
-    const url = 'http://ip-api.com/json/' + encodeURIComponent(clean) + '?fields=status,city,country,countryCode&lang=ru';
-    const r = await fetch(url);
-    const j = await r.json();
-    if (j && j.status === 'success') return res.json({ ok: true, city: j.city || '', country: j.country || '', countryCode: j.countryCode || '' });
-    res.json({ ok: false, city: '' });
-  } catch (e) {
-    res.json({ ok: false, city: '' });
-  }
-});
 
 // Раздаём FontAwesome со своего сервера (иконки без внешних CDN,
 // чтобы сайт открывался в РФ без VPN)
@@ -499,7 +481,8 @@ io.on('connection', (socket) => {
 
   // Применить фильтры поиска (базовые + премиум-фильтры для платных)
   function applyFilters(me, filters) {
-    me.city = filters.city || me.city;
+    // Город в подборе не используется как жёсткий фильтр; пустое значение / «Любой»
+    // означает «искать по всем городам». Профильный город фильтром не перетираем.
     me.filterGenders = filters.genders || ['any'];
     me.filterAges = filters.ages || [];
     const prem = premAccess(me);
@@ -613,17 +596,41 @@ io.on('connection', (socket) => {
     if (!me) return;
     const dur = Math.max(0, Math.min(24 * 3600, parseInt(payload && payload.duration, 10) || 0));
     try {
+      // Активность пишем ДО начисления, чтобы прогресс дневных челленджей учёл этот звонок
+      db.addActivity(me.uuid, 'call', String(dur) + 's');
       const st = db.recordConversation(me.uuid, dur);
       if (st) { me.level = st.level; socket.emit('stat:me', st); }
-      db.addActivity(me.uuid, 'call', String(dur) + 's');
+      // Проверяем новые достижения и уведомляем клиента
+      const newly = db.checkAchievements(me.uuid);
+      if (newly && newly.length) newly.forEach((a) => socket.emit('achievement:unlocked', { name: a.name, icon: a.icon }));
     } catch (e) {}
   });
 
-  // Запрос своей статистики (профиль → «Моя статистика»)
+  // Запрос своей статистики (короткая версия, для бейджа уровня)
   socket.on('stat:get', (ack) => {
     const me = users.get(socket.id);
     if (typeof ack !== 'function') return;
-    try { ack(db.getUserStats(me ? me.uuid : '')); } catch (e) { ack({ convCount: 0, totalDuration: 0, points: 0, level: 1 }); }
+    try { ack(db.getUserStats(me ? me.uuid : '')); } catch (e) { ack({ convCount: 0, totalDuration: 0, points: 0, xp: 0, level: 1 }); }
+  });
+
+  // Полная статистика для вкладки «Статистика» (уровень, XP, ачивки, челленджи, топ)
+  socket.on('stats:get', (ack) => {
+    const me = users.get(socket.id);
+    if (typeof ack !== 'function') return;
+    try { ack(db.getFullStats(me ? me.uuid : '')); }
+    catch (e) { ack({ stats: { totalMinutes: 0, totalCalls: 0, xp: 0, level: 1, curLevelXp: 0, nextLevelXp: 50, toNext: 50 }, achievements: [], challenges: [], leaderboard: [] }); }
+  });
+
+  // Забрать бонус за выполненный дневной челлендж
+  socket.on('challenge:claim', (payload, ack) => {
+    const me = users.get(socket.id);
+    if (typeof ack !== 'function') return;
+    if (!me) return ack({ ok: false, error: 'Нет сессии' });
+    try {
+      const res = db.claimChallenge(me.uuid, String(payload && payload.kind || ''));
+      if (res.ok) { me.level = res.level; socket.emit('stat:me', db.getUserStats(me.uuid)); }
+      ack(res);
+    } catch (e) { ack({ ok: false, error: 'Ошибка' }); }
   });
 
   // Подарок собеседнику (премиум): отправляем стикер/анимацию

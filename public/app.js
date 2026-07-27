@@ -121,8 +121,9 @@ function toast(message) {
 function setupCity(inputId, listId, allowAny) {
   const input = document.getElementById(inputId);
   const list = document.getElementById(listId);
-  // Для фильтров по умолчанию «Любой» (город не важен), в профиле — «Москва»
-  input.value = allowAny ? 'Любой' : 'Москва';
+  // Для фильтров по умолчанию «Любой» (город не важен). В профиле — пусто:
+  // пользователь заполняет город вручную (автоопределение по IP отключено).
+  input.value = allowAny ? 'Любой' : '';
 
   // Отрисовать список подходящих городов по введённому тексту
   function renderList(query) {
@@ -212,8 +213,10 @@ function getChips(groupId) {
 
 // Собрать все фильтры вкладки ('voice' | 'text')
 function getFilters(prefix) {
+  // Город: пустое значение или «Любой» → не ограничиваем поиск городом
+  const cityRaw = $('#' + prefix + '-city').value.trim();
   const f = {
-    city: $('#' + prefix + '-city').value.trim() || 'Москва',
+    city: (!cityRaw || cityRaw === 'Любой') ? '' : cityRaw,
     genders: getChips(prefix + '-gender'),
     ages: getChips(prefix + '-age'),
   };
@@ -237,6 +240,8 @@ document.querySelectorAll('.nav-tab').forEach((tab) => {
     $('#panel-' + tab.dataset.tab).classList.add('active');
     // При открытии вкладки Premium перерисовываем тарифы (подсветка текущего)
     if (tab.dataset.tab === 'subs') renderSubs();
+    // При открытии вкладки «Статистика» — подгружаем актуальные данные
+    if (tab.dataset.tab === 'stats') loadStatsTab();
   });
 });
 
@@ -1056,7 +1061,7 @@ let profile = loadProfile();
 function applyProfileToForm() {
   $('#pf-nick').value = profile.nick || '';
   $('#pf-gender').value = profile.gender || 'male';
-  $('#pf-city').value = profile.city || 'Москва';
+  $('#pf-city').value = profile.city || '';
   $('#pf-age').value = profile.age || '';
   // Премиум-поля
   if ($('#pf-desc')) $('#pf-desc').value = profile.description || '';
@@ -1095,7 +1100,7 @@ function saveProfileFromForm() {
   profile = {
     nick,
     gender: $('#pf-gender').value,
-    city: $('#pf-city').value.trim() || 'Москва',
+    city: $('#pf-city').value.trim(), // город вводится вручную; пусто — допустимо
     age: $('#pf-age').value,
     // Премиум-поля (сохраняем как есть; сервер применит при подписке)
     avatar: profile.avatar || '',
@@ -1995,38 +2000,85 @@ socket.on('text:matched', () => maybeNotify('Собеседник найден!'
   });
 })();
 
-// ---------- СТАТИСТИКА И УРОВНИ ----------
-// Порог очков для достижения уровня n (совпадает с сервером)
-function pointsForLevel(n) { return 25 * (n - 1) * n; }
-let myStats = { convCount: 0, totalDuration: 0, points: 0, level: 1 };
+// ---------- СТАТИСТИКА, УРОВНИ, ДОСТИЖЕНИЯ (вкладка «Статистика») ----------
+let myStats = { convCount: 0, totalDuration: 0, points: 0, xp: 0, level: 1 };
 
-function renderStats() {
-  const s = myStats;
-  const lvlEl = document.getElementById('pf-level');
-  if (lvlEl) lvlEl.textContent = 'Ур. ' + (s.level || 1);
-  const ptsEl = document.getElementById('pf-level-pts');
-  if (ptsEl) ptsEl.textContent = (s.points || 0) + ' очк.';
-  // Прогресс до следующего уровня
-  const cur = pointsForLevel(s.level || 1);
-  const next = pointsForLevel((s.level || 1) + 1);
-  const pct = next > cur ? Math.min(100, Math.round(((s.points - cur) / (next - cur)) * 100)) : 100;
-  const fill = document.getElementById('pf-level-fill');
-  if (fill) fill.style.width = pct + '%';
-  const conv = document.getElementById('pf-stat-conv');
-  if (conv) conv.textContent = s.convCount || 0;
-  const time = document.getElementById('pf-stat-time');
-  if (time) time.textContent = Math.round((s.totalDuration || 0) / 60) + ' мин';
-  const avg = document.getElementById('pf-stat-avg');
-  if (avg) {
-    const a = s.convCount ? Math.round((s.totalDuration / s.convCount) / 60) : 0;
-    avg.textContent = a + ' мин';
-  }
+// Загрузить и отрисовать вкладку статистики
+function loadStatsTab() {
+  socket.emit('stats:get', (data) => { if (data) renderStatsTab(data); });
 }
-socket.on('stat:me', (s) => { if (s) { myStats = s; renderStats(); } });
-// Обновляем статистику при открытии раздела «Профиль»
-const openProfileRow = document.querySelector('[data-open="profile"]');
-if (openProfileRow) openProfileRow.addEventListener('click', () => {
-  socket.emit('stat:get', (s) => { if (s) { myStats = s; renderStats(); } });
+function fmtMinutes(min) {
+  if (min >= 60) { const h = Math.floor(min / 60), m = min % 60; return h + ' ч' + (m ? ' ' + m + ' мин' : ''); }
+  return min + ' мин';
+}
+function renderStatsTab(data) {
+  const s = data.stats || {};
+  const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setTxt('st-level', 'Ур. ' + (s.level || 1));
+  setTxt('st-xp', (s.xp || 0) + ' XP');
+  setTxt('st-xp2', s.xp || 0);
+  setTxt('st-calls', s.totalCalls || 0);
+  setTxt('st-time', fmtMinutes(s.totalMinutes || 0));
+  setTxt('st-tonext', (s.level >= 99) ? 'Максимальный уровень' : ('До ' + ((s.level || 1) + 1) + ' уровня: ' + (s.toNext || 0) + ' XP'));
+  const cur = s.curLevelXp || 0, next = s.nextLevelXp || 50;
+  const pct = next > cur ? Math.min(100, Math.round((((s.xp || 0) - cur) / (next - cur)) * 100)) : 100;
+  const fill = document.getElementById('st-fill'); if (fill) fill.style.width = pct + '%';
+
+  // Челленджи
+  const ch = document.getElementById('st-challenges');
+  if (ch) ch.innerHTML = (data.challenges || []).map((c) => {
+    const pct2 = Math.min(100, Math.round((c.progress / c.target) * 100));
+    const btn = c.claimed
+      ? '<span class="ch-claimed"><i class="fa-solid fa-check"></i> Получено</span>'
+      : (c.done ? '<button class="btn btn-green btn-sm ch-claim" data-kind="' + c.kind + '">+' + c.reward + ' XP</button>'
+                : '<span class="ch-reward">+' + c.reward + ' XP</span>');
+    return '<div class="challenge"><div class="ch-head"><span>' + escapeHtml(c.name) + '</span>' + btn + '</div>' +
+      '<div class="ch-bar"><span style="width:' + pct2 + '%"></span></div>' +
+      '<div class="ch-prog">' + c.progress + ' / ' + c.target + '</div></div>';
+  }).join('') || '<div class="empty-note">Нет активных челленджей</div>';
+
+  // Достижения
+  const ag = document.getElementById('st-achievements');
+  if (ag) ag.innerHTML = (data.achievements || []).map((a) => {
+    const done = a.unlocked;
+    return '<div class="ach' + (done ? ' unlocked' : '') + '" title="' + escapeHtml(a.description) + '">' +
+      '<div class="ach-ic"><i class="fa-solid ' + escapeHtml(a.icon) + '"></i></div>' +
+      '<div class="ach-name">' + escapeHtml(a.name) + '</div>' +
+      '<div class="ach-prog">' + (done ? 'Получено' : (a.progress + ' / ' + a.target)) + '</div></div>';
+  }).join('');
+
+  // Таблица лидеров
+  const lb = document.getElementById('st-leaderboard');
+  if (lb) lb.innerHTML = (data.leaderboard || []).map((r) => {
+    const medal = r.rank <= 3 ? ' top' + r.rank : '';
+    return '<div class="lb-row' + medal + '"><span class="lb-rank">' + r.rank + '</span>' +
+      '<span class="lb-nick">' + escapeHtml(r.nick) + '</span>' +
+      '<span class="lb-lvl">Ур. ' + r.level + '</span>' +
+      '<span class="lb-xp">' + r.xp + ' XP</span></div>';
+  }).join('') || '<div class="empty-note">Пока никого нет</div>';
+}
+
+// Клик по кнопке «забрать бонус» челленджа
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest && e.target.closest('.ch-claim');
+  if (!btn) return;
+  socket.emit('challenge:claim', { kind: btn.dataset.kind }, (res) => {
+    if (res && res.ok) { toast('Бонус +' + res.reward + ' XP получен!'); loadStatsTab(); }
+    else toast((res && res.error) || 'Не удалось получить бонус');
+  });
+});
+
+// Обновление краткой статистики (уровень у ника и т.п.)
+socket.on('stat:me', (s) => {
+  if (!s) return;
+  myStats = s;
+  // Если вкладка статистики открыта — перезагрузим её
+  const panel = document.getElementById('panel-stats');
+  if (panel && panel.classList.contains('active')) loadStatsTab();
+});
+// Уведомление о новом достижении
+socket.on('achievement:unlocked', (a) => {
+  if (a && a.name) toast('🏆 Достижение: ' + a.name);
 });
 
 // Отправить длительность завершённого разговора на сервер (для очков/уровня)
@@ -2226,30 +2278,8 @@ function uploadPhoto(dataUrl) {
   }).catch(() => toast('Ошибка загрузки фото'));
 }
 
-// ---------- ОПРЕДЕЛЕНИЕ ГОРОДА ПО IP (первый заход) ----------
-(function detectCityByIP() {
-  // Только при первом заходе и если город ещё не задан пользователем
-  if (localStorage.getItem('vt_geo_done')) return;
-  if (profile && profile.city && profile.city !== 'Москва') { localStorage.setItem('vt_geo_done', '1'); return; }
-  fetch('/api/geo').then((r) => r.json()).then((res) => {
-    localStorage.setItem('vt_geo_done', '1');
-    if (!res || !res.ok || !res.city) return;
-    // Подставляем в профиль, если пользователь ещё не выбрал город вручную
-    if (!profile.city || profile.city === 'Москва') {
-      profile.city = res.city;
-      localStorage.setItem('vt_profile', JSON.stringify(profile));
-      const pf = document.getElementById('pf-city');
-      if (pf) pf.value = res.city;
-      // и в фильтры вкладок, если там ещё «Любой»/пусто
-      ['voice-city', 'text-city'].forEach((idc) => {
-        const el = document.getElementById(idc);
-        if (el && (!el.value || el.value === 'Любой')) el.value = res.city;
-      });
-      sendProfile();
-      toast('Город определён: ' + res.city);
-    }
-  }).catch(() => { localStorage.setItem('vt_geo_done', '1'); });
-})();
+// Определение города по IP отключено: город в профиле пользователь вводит вручную,
+// а фильтры по умолчанию «Любой» (поиск не ограничен городом).
 
 
 /* ==========================================================================

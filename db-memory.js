@@ -113,10 +113,96 @@ function recordConversation(id, durationSec) {
   u.level = levelForPoints(u.points);
   return { convCount: u.convCount, totalDuration: u.totalDuration, points: u.points, level: u.level };
 }
+function addXp(id, amount) {
+  const u = getUser(id);
+  if (!u) return null;
+  u.points = (u.points || 0) + Math.max(0, parseInt(amount, 10) || 0);
+  u.level = levelForPoints(u.points);
+  return { points: u.points, level: u.level };
+}
 function getUserStats(id) {
   const u = getUser(id);
-  if (!u) return { convCount: 0, totalDuration: 0, points: 0, level: 1 };
-  return { convCount: u.convCount || 0, totalDuration: u.totalDuration || 0, points: u.points || 0, level: u.level || 1 };
+  if (!u) return { convCount: 0, totalDuration: 0, points: 0, xp: 0, level: 1 };
+  return { convCount: u.convCount || 0, totalDuration: u.totalDuration || 0, points: u.points || 0, xp: u.points || 0, level: u.level || 1 };
+}
+
+// --- Достижения / челленджи / лидерборд (в памяти) ---
+const ACHIEVEMENTS = [
+  { id: 1, name: 'Первый разговор', description: 'Проведите свой первый разговор', icon: 'fa-comment-dots', condition_type: 'calls', condition_value: 1 },
+  { id: 2, name: 'Разговорчивый', description: '10 разговоров', icon: 'fa-comments', condition_type: 'calls', condition_value: 10 },
+  { id: 3, name: 'Легенда общения', description: '100 разговоров', icon: 'fa-crown', condition_type: 'calls', condition_value: 100 },
+  { id: 4, name: 'Час в эфире', description: '100 минут в чате', icon: 'fa-clock', condition_type: 'minutes', condition_value: 100 },
+  { id: 5, name: 'Марафонец', description: '500 минут в чате', icon: 'fa-hourglass-half', condition_type: 'minutes', condition_value: 500 },
+  { id: 6, name: 'Восходящая звезда', description: 'Достигните 5 уровня', icon: 'fa-star', condition_type: 'level', condition_value: 5 },
+  { id: 7, name: 'Мастер общения', description: 'Достигните 10 уровня', icon: 'fa-medal', condition_type: 'level', condition_value: 10 },
+];
+const userAch = new Map();       // user_id -> Map(achId -> unlockedAt)
+const claims = new Set();        // "user|day|kind"
+const CHALLENGES = [
+  { kind: 'minutes', name: 'Проведи 30 минут в чате сегодня', target: 30, reward: 50 },
+  { kind: 'calls', name: 'Проведи 3 разговора сегодня', target: 3, reward: 30 },
+];
+function achCond(u, a) {
+  const minutes = Math.floor((u.totalDuration || 0) / 60);
+  if (a.condition_type === 'calls') return (u.convCount || 0) >= a.condition_value;
+  if (a.condition_type === 'minutes') return minutes >= a.condition_value;
+  return (u.level || 1) >= a.condition_value;
+}
+function checkAchievements(id) {
+  const u = getUser(id); if (!u) return [];
+  if (!userAch.has(id)) userAch.set(id, new Map());
+  const have = userAch.get(id);
+  const newly = [];
+  for (const a of ACHIEVEMENTS) if (!have.has(a.id) && achCond(u, a)) { have.set(a.id, Date.now()); newly.push(a); }
+  return newly;
+}
+function getAchievements(id) {
+  const u = getUser(id) || {};
+  const minutes = Math.floor((u.totalDuration || 0) / 60);
+  const have = userAch.get(id) || new Map();
+  return ACHIEVEMENTS.map((a) => {
+    const cur = a.condition_type === 'calls' ? (u.convCount || 0) : a.condition_type === 'minutes' ? minutes : (u.level || 1);
+    return { id: a.id, name: a.name, description: a.description, icon: a.icon, target: a.condition_value, progress: Math.min(cur, a.condition_value), unlocked: have.has(a.id), unlockedAt: have.get(a.id) || null };
+  });
+}
+function getLeaderboard() {
+  return [...users.values()]
+    .map((u) => ({ nick: u.nick || 'Аноним', xp: u.points || 0, level: u.level || 1, calls: u.convCount || 0 }))
+    .sort((a, b) => b.xp - a.xp || b.calls - a.calls).slice(0, 10)
+    .map((r, i) => ({ rank: i + 1, ...r }));
+}
+function todayProgress(id) {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const rows = activityLogs.filter((l) => l.userId === id && l.type === 'call' && l.createdAt >= start);
+  let minutes = 0; rows.forEach((r) => { minutes += Math.floor((parseInt(String(r.info), 10) || 0) / 60); });
+  return { minutes, calls: rows.length };
+}
+function dayKey() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function getChallenges(id) {
+  const prog = todayProgress(id); const day = dayKey();
+  return CHALLENGES.map((c) => {
+    const cur = c.kind === 'minutes' ? prog.minutes : prog.calls;
+    return { kind: c.kind, name: c.name, target: c.target, progress: Math.min(cur, c.target), reward: c.reward, done: cur >= c.target, claimed: claims.has(id + '|' + day + '|' + c.kind) };
+  });
+}
+function claimChallenge(id, kind) {
+  const c = CHALLENGES.find((x) => x.kind === kind);
+  if (!c) return { ok: false, error: 'Неизвестный челлендж' };
+  const prog = todayProgress(id); const cur = c.kind === 'minutes' ? prog.minutes : prog.calls;
+  if (cur < c.target) return { ok: false, error: 'Челлендж ещё не выполнен' };
+  const key = id + '|' + dayKey() + '|' + kind;
+  if (claims.has(key)) return { ok: false, error: 'Бонус уже получен' };
+  claims.add(key); const st = addXp(id, c.reward);
+  return { ok: true, reward: c.reward, points: st ? st.points : 0, level: st ? st.level : 1 };
+}
+function getFullStats(id) {
+  const s = getUserStats(id);
+  const cur = 25 * (s.level - 1) * s.level, next = 25 * s.level * (s.level + 1);
+  return {
+    stats: { totalMinutes: Math.floor(s.totalDuration / 60), totalCalls: s.convCount, xp: s.xp, level: s.level, curLevelXp: cur, nextLevelXp: next, toNext: Math.max(0, next - s.xp) },
+    achievements: getAchievements(id), challenges: getChallenges(id), leaderboard: getLeaderboard(),
+  };
 }
 
 // --- Реакции ---
@@ -150,7 +236,8 @@ module.exports = {
   db: null,
   getOrCreateUser, getUser, getUserByNick, saveProfile, setSubscription, activePlan,
   banUser, setRole, touch, addReport, addAdminLog, addActivity, addMessage, getMessages,
-  pruneMessages, recordConversation, getUserStats, addReaction, getReactions, getAnalytics, getStats,
+  pruneMessages, recordConversation, getUserStats, addXp, checkAchievements, getAchievements,
+  getLeaderboard, getChallenges, claimChallenge, getFullStats, addReaction, getReactions, getAnalytics, getStats,
   allUsers: () => [...users.values()].sort((a, b) => b.createdAt - a.createdAt),
   allReports: () => reports.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 200),
   allAdminLogs: () => adminLogs.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 200),

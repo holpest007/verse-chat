@@ -520,6 +520,48 @@
         </div>
         <div class="subs-body" id="subs-cards"></div>
       </section>
+
+      <!-- ============ ВКЛАДКА: СТАТИСТИКА ============ -->
+      <section class="panel" id="panel-stats">
+        <h2 class="stats-h"><i class="fa-solid fa-trophy"></i> Статистика</h2>
+
+        <!-- Карточка уровня и прогресса -->
+        <div class="card level-card">
+          <div class="level-top">
+            <span class="level-badge lg" id="st-level">Ур. 1</span>
+            <div class="level-info">
+              <b id="st-xp">0 XP</b>
+              <small id="st-tonext">До следующего уровня: 50 XP</small>
+            </div>
+          </div>
+          <div class="level-bar"><span id="st-fill"></span></div>
+        </div>
+
+        <!-- Плитки: время и разговоры -->
+        <div class="stat-grid">
+          <div class="stat-cell"><b id="st-calls">0</b><small>разговоров</small></div>
+          <div class="stat-cell"><b id="st-time">0 мин</b><small>в чате</small></div>
+          <div class="stat-cell"><b id="st-xp2">0</b><small>очков XP</small></div>
+        </div>
+
+        <!-- Дневные челленджи -->
+        <div class="card">
+          <div class="card-label"><i class="fa-solid fa-bolt"></i> Челленджи дня</div>
+          <div id="st-challenges"></div>
+        </div>
+
+        <!-- Достижения -->
+        <div class="card">
+          <div class="card-label"><i class="fa-solid fa-medal"></i> Достижения</div>
+          <div class="ach-grid" id="st-achievements"></div>
+        </div>
+
+        <!-- Таблица лидеров -->
+        <div class="card">
+          <div class="card-label"><i class="fa-solid fa-ranking-star"></i> Топ-10 по XP</div>
+          <div class="leaderboard" id="st-leaderboard"></div>
+        </div>
+      </section>
     </main>
 
     <!-- ============ НИЖНЯЯ НАВИГАЦИЯ ============ -->
@@ -539,6 +581,10 @@
       <button class="nav-tab" data-tab="text">
         <span class="nav-icon"><i class="fa-regular fa-comment"></i></span>
         <span class="nav-label">Текстовый чат</span>
+      </button>
+      <button class="nav-tab" data-tab="stats">
+        <span class="nav-icon"><i class="fa-solid fa-trophy"></i></span>
+        <span class="nav-label">Статистика</span>
       </button>
       <button class="nav-tab nav-premium" data-tab="subs">
         <span class="nav-icon">
@@ -751,21 +797,6 @@
               <span class="s-field-label">Рост, см</span>
               <input type="number" id="pf-height" class="s-input" min="120" max="230" placeholder="175" />
             </label>
-          </div>
-
-          <!-- Моя статистика (уровень, разговоры, время) -->
-          <div class="stats-block">
-            <div class="card-label"><i class="fa-solid fa-chart-simple"></i> Моя статистика</div>
-            <div class="my-level">
-              <span class="level-badge" id="pf-level">Ур. 1</span>
-              <div class="level-bar"><span id="pf-level-fill"></span></div>
-              <span class="level-pts" id="pf-level-pts">0 очков</span>
-            </div>
-            <div class="stat-grid">
-              <div class="stat-cell"><b id="pf-stat-conv">0</b><small>разговоров</small></div>
-              <div class="stat-cell"><b id="pf-stat-time">0 мин</b><small>в сумме</small></div>
-              <div class="stat-cell"><b id="pf-stat-avg">0 мин</b><small>в среднем</small></div>
-            </div>
           </div>
 
           <!-- Мой идентификатор (для обращения в поддержку/к админу) -->

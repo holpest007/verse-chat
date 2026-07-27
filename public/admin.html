@@ -311,6 +311,8 @@
           <td>${u.gender === 'female' ? 'Ж' : 'М'}</td>
           <td>${esc(u.age)}</td>
           <td>${esc(u.city)}</td>
+          <td><span class="badge b-plus">Ур. ${esc(u.level || 1)}</span></td>
+          <td>${esc(u.points || 0)}</td>
           <td><span class="badge b-${u.subscription}">${planName(u.subscription)}</span></td>
           <td><span class="badge b-${u.role}">${roleName(u.role)}</span></td>
           <td>${u.isBanned ? '<span class="badge b-ban">Забанен</span>' : '<span class="badge b-ok">Активен</span>'}</td>
@@ -320,8 +322,8 @@
             : `<button class="btn btn-danger btn-sm" onclick="ban('${u.id}',true)">Забанить</button>`}</td>
         </tr>`).join('');
       document.getElementById('users-table').innerHTML =
-        `<thead><tr><th>ID</th><th>Ник</th><th>Пол</th><th>Возраст</th><th>Город</th><th>Подписка</th><th>Роль</th><th>Статус</th><th>Регистрация</th><th></th></tr></thead>
-         <tbody>${rows || emptyRow(10)}</tbody>`;
+        `<thead><tr><th>ID</th><th>Ник</th><th>Пол</th><th>Возраст</th><th>Город</th><th>Уровень</th><th>XP</th><th>Подписка</th><th>Роль</th><th>Статус</th><th>Регистрация</th><th></th></tr></thead>
+         <tbody>${rows || emptyRow(12)}</tbody>`;
     }
     async function ban(id, banned) {
       await api('/admin/api/users/' + id + '/ban', { method: 'POST', body: JSON.stringify({ banned }) });
