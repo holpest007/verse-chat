@@ -238,22 +238,48 @@ function getReactions(msgId) {
 }
 
 // --- Аналитика ---
-function getAnalytics() {
+function dayKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function getAnalytics(fromMs, toMs) {
   const now = Date.now();
   const day = 24 * 60 * 60 * 1000;
-  const uniq = (since) => {
-    const set = new Set();
-    activityLogs.forEach((l) => { if (l.type === 'login' && l.createdAt >= since) set.add(l.userId); });
-    return set.size;
-  };
+  const to = toMs || now, from = fromMs || (to - 30 * day);
+  const totalUsers = users.size;
+  const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+  let todayNew = 0, newInRange = 0;
+  for (const u of users.values()) {
+    if (u.createdAt >= startToday.getTime()) todayNew++;
+    if (u.createdAt >= from && u.createdAt <= to) newInRange++;
+  }
+  const allR = ratings.map((r) => r.rating);
+  const avgRating = allR.length ? Math.round((allR.reduce((s, x) => s + x, 0) / allR.length) * 100) / 100 : 0;
+  const uniqSet = new Set();
   const hours = new Array(24).fill(0);
+  const byDay = {};
   activityLogs.forEach((l) => {
-    if (l.type === 'login' && l.createdAt >= now - 30 * day) hours[new Date(l.createdAt).getHours()]++;
+    if (l.type === 'login' && l.createdAt >= from && l.createdAt <= to) {
+      uniqSet.add(l.userId);
+      const d = new Date(l.createdAt); hours[d.getHours()]++;
+      const k = dayKey(d); byDay[k] = (byDay[k] || 0) + 1;
+    }
   });
+  const visitsByDay = Object.keys(byDay).sort().map((k) => ({ day: k, n: byDay[k] }));
+  const rSum = {}, rCnt = {};
+  ratings.forEach((r) => {
+    if (r.createdAt >= from && r.createdAt <= to) {
+      const k = dayKey(new Date(r.createdAt)); rSum[k] = (rSum[k] || 0) + r.rating; rCnt[k] = (rCnt[k] || 0) + 1;
+    }
+  });
+  const ratingByDay = Object.keys(rCnt).sort().map((k) => ({ day: k, avg: Math.round((rSum[k] / rCnt[k]) * 100) / 100, n: rCnt[k] }));
   const cityMap = {};
   for (const u of users.values()) if (u.city) cityMap[u.city] = (cityMap[u.city] || 0) + 1;
-  const cities = Object.entries(cityMap).map(([city, n]) => ({ city, n })).sort((a, b) => b.n - a.n).slice(0, 10);
-  return { unique: { day: uniq(now - day), week: uniq(now - 7 * day), month: uniq(now - 30 * day) }, hours, cities };
+  const cities = Object.entries(cityMap).map(([city, n]) => ({ city, n })).sort((a, b) => b.n - a.n).slice(0, 20);
+  return {
+    range: { from, to },
+    cards: { totalUsers, todayNew, avgRating, uniqueInRange: uniqSet.size, newInRange },
+    visitsByDay, hours, cities, ratingByDay,
+  };
 }
 
 module.exports = {

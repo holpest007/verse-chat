@@ -90,6 +90,29 @@
     .bar-h{font-size:10px;color:var(--muted)}
     .bar-v{font-size:10px;color:var(--text);font-weight:600}
 
+    /* ---- Аналитика: тулбар, карточки, графики ---- */
+    .an-toolbar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+    .an-field{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
+    .an-select{padding:9px 11px;background:var(--card2,#1c1c23);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:14px}
+    .an-spacer{flex:1}
+    .an-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:24px}
+    .an-card{position:relative;border-radius:16px;padding:18px 18px 16px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.28);border:1px solid var(--border)}
+    .an-card .an-ic{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;margin-bottom:12px}
+    .an-num{font-size:30px;font-weight:800;line-height:1;color:var(--text)}
+    .an-lbl{color:var(--muted);font-size:13px;margin-top:6px}
+    .an-card.c-blue{background:linear-gradient(160deg,rgba(91,108,255,.16),rgba(91,108,255,.04))}
+    .an-card.c-blue .an-ic{background:linear-gradient(150deg,#5b6cff,#7a4dff)}
+    .an-card.c-green{background:linear-gradient(160deg,rgba(34,197,94,.16),rgba(34,197,94,.04))}
+    .an-card.c-green .an-ic{background:linear-gradient(150deg,#22c55e,#16a34a)}
+    .an-card.c-violet{background:linear-gradient(160deg,rgba(168,85,247,.16),rgba(168,85,247,.04))}
+    .an-card.c-violet .an-ic{background:linear-gradient(150deg,#a855f7,#7c3aed)}
+    .an-card.c-gold{background:linear-gradient(160deg,rgba(245,179,1,.16),rgba(245,179,1,.04))}
+    .an-card.c-gold .an-ic{background:linear-gradient(150deg,#f5b301,#e08e00)}
+    .an-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:24px}
+    .an-chart{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+    .an-chart-h{font-size:15px;font-weight:700;margin-bottom:12px}
+    .an-canvas-wrap{position:relative;height:240px}
+
     .assign{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px}
     .assign .input{max-width:260px}
     .assign select{padding:11px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit}
@@ -142,12 +165,78 @@
       </div>
       <!-- Аналитика -->
       <div class="view" id="v-analytics">
-        <h2 class="section">Посещаемость (уникальные пользователи)</h2>
-        <div class="stats" id="analytics-unique"></div>
-        <h2 class="section">Пиковые часы (за 30 дней)</h2>
-        <div class="table-wrap" style="padding:16px;margin-bottom:24px"><div id="analytics-hours" class="bars"></div></div>
-        <h2 class="section">Популярные города</h2>
-        <div class="table-wrap"><table id="analytics-cities"></table></div>
+        <!-- Панель фильтров по дате -->
+        <div class="an-toolbar">
+          <label class="an-field">Период
+            <select id="an-period" class="an-select">
+              <option value="today">Сегодня</option>
+              <option value="yesterday">Вчера</option>
+              <option value="7">Последние 7 дней</option>
+              <option value="30" selected>Последние 30 дней</option>
+              <option value="custom">Произвольный диапазон</option>
+            </select>
+          </label>
+          <label class="an-field an-custom hidden">с
+            <input type="date" id="an-from" class="an-select" />
+          </label>
+          <label class="an-field an-custom hidden">по
+            <input type="date" id="an-to" class="an-select" />
+          </label>
+          <span class="an-spacer"></span>
+          <button class="btn btn-ghost btn-sm" id="an-refresh"><i class="fa-solid fa-rotate"></i> Обновить</button>
+          <button class="btn btn-ghost btn-sm" id="an-csv"><i class="fa-solid fa-file-csv"></i> Экспорт CSV</button>
+        </div>
+
+        <!-- Карточки-виджеты -->
+        <div class="an-cards">
+          <div class="an-card c-blue">
+            <div class="an-ic"><i class="fa-solid fa-users"></i></div>
+            <div class="an-num" id="c-total">—</div>
+            <div class="an-lbl">Всего пользователей</div>
+          </div>
+          <div class="an-card c-green">
+            <div class="an-ic"><i class="fa-solid fa-circle-dot"></i></div>
+            <div class="an-num" id="c-online">—</div>
+            <div class="an-lbl">Онлайн сейчас</div>
+          </div>
+          <div class="an-card c-violet">
+            <div class="an-ic"><i class="fa-solid fa-user-plus"></i></div>
+            <div class="an-num" id="c-today">—</div>
+            <div class="an-lbl">Новых за сегодня</div>
+          </div>
+          <div class="an-card c-gold">
+            <div class="an-ic"><i class="fa-solid fa-star"></i></div>
+            <div class="an-num" id="c-rating">—</div>
+            <div class="an-lbl">Средний рейтинг</div>
+          </div>
+        </div>
+
+        <!-- Графики -->
+        <div class="an-grid">
+          <div class="an-chart">
+            <div class="an-chart-h">Посещаемость по дням</div>
+            <div class="an-canvas-wrap"><canvas id="ch-visits"></canvas></div>
+          </div>
+          <div class="an-chart">
+            <div class="an-chart-h">Пиковые часы активности</div>
+            <div class="an-canvas-wrap"><canvas id="ch-hours"></canvas></div>
+          </div>
+          <div class="an-chart">
+            <div class="an-chart-h">Популярные города</div>
+            <div class="an-canvas-wrap"><canvas id="ch-cities"></canvas></div>
+          </div>
+          <div class="an-chart">
+            <div class="an-chart-h">Динамика среднего рейтинга</div>
+            <div class="an-canvas-wrap"><canvas id="ch-rating"></canvas></div>
+          </div>
+        </div>
+
+        <h2 class="section">Опасная зона</h2>
+        <div class="table-wrap" style="padding:16px">
+          <p class="muted" style="margin:0 0 12px">Сброс обнулит оценки, время в чате, разговоры, XP/уровни, достижения и логи активности. Пользователи, роли и подписки останутся.</p>
+          <button class="btn btn-danger btn-sm" id="reset-stats-btn">Сбросить статистику</button>
+          <span class="muted" id="reset-stats-msg" style="margin-left:10px"></span>
+        </div>
       </div>
       <!-- Пользователи -->
       <div class="view" id="v-users">
@@ -184,6 +273,8 @@
     </div>
   </div>
 
+  <!-- Chart.js — локально, без внешних CDN -->
+  <script src="vendor/chart.min.js"></script>
   <script>
     // --- Состояние ---
     let token = localStorage.getItem('vt_admin_token') || '';
@@ -298,28 +389,140 @@
     const stat = (cls, n, l) => `<div class="stat ${cls}"><div class="n">${esc(n)}</div><div class="l">${esc(l)}</div></div>`;
 
     // --- Аналитика ---
-    async function loadAnalytics() {
-      const a = await api('/admin/api/analytics');
-      document.getElementById('analytics-unique').innerHTML =
-        stat('indigo', a.unique.day, 'За день') +
-        stat('green', a.unique.week, 'За неделю') +
-        stat('gold', a.unique.month, 'За месяц');
-      // Пиковые часы
-      const hours = a.hours || [];
-      const max = Math.max(1, ...hours);
-      const peak = hours.indexOf(max);
-      document.getElementById('analytics-hours').innerHTML = hours.map((v, h) =>
-        `<div class="bar-col ${v === max && v > 0 ? 'peak' : ''}">
-           <span class="bar-v">${v || ''}</span>
-           <div class="bar" style="height:${Math.round((v / max) * 140)}px"></div>
-           <span class="bar-h">${h}</span>
-         </div>`).join('');
-      // Популярные города
-      const cRows = (a.cities || []).map((c, i) =>
-        `<tr><td>${i + 1}</td><td>${esc(c.city)}</td><td>${esc(c.n)}</td></tr>`).join('');
-      document.getElementById('analytics-cities').innerHTML =
-        `<thead><tr><th>#</th><th>Город</th><th>Пользователей</th></tr></thead><tbody>${cRows || emptyRow(3)}</tbody>`;
+    if (window.Chart) { Chart.defaults.color = '#9aa0aa'; Chart.defaults.font.size = 13; Chart.defaults.animation = { duration: 300 }; }
+    let anCharts = {};       // id канваса -> экземпляр Chart
+    let anLastData = null;   // последние данные (для CSV)
+
+    // Диапазон [from,to] по выбранному периоду
+    function anRange() {
+      const period = document.getElementById('an-period').value;
+      const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+      const endToday = new Date(); endToday.setHours(23, 59, 59, 999);
+      const D = 86400000;
+      if (period === 'today') return { from: startToday.getTime(), to: endToday.getTime() };
+      if (period === 'yesterday') return { from: startToday.getTime() - D, to: startToday.getTime() - 1 };
+      if (period === '7') return { from: startToday.getTime() - 6 * D, to: endToday.getTime() };
+      if (period === '30') return { from: startToday.getTime() - 29 * D, to: endToday.getTime() };
+      const f = document.getElementById('an-from').value, t = document.getElementById('an-to').value;
+      return {
+        from: f ? new Date(f + 'T00:00:00').getTime() : startToday.getTime() - 29 * D,
+        to: t ? new Date(t + 'T23:59:59').getTime() : endToday.getTime(),
+      };
     }
+    function anChart(id, config) {
+      if (anCharts[id]) anCharts[id].destroy();
+      config.options = Object.assign({ responsive: true, maintainAspectRatio: false }, config.options);
+      anCharts[id] = new Chart(document.getElementById(id), config);
+    }
+
+    async function loadAnalytics(fresh) {
+      const { from, to } = anRange();
+      const a = await api('/admin/api/analytics?from=' + from + '&to=' + to + (fresh ? '&fresh=1' : ''));
+      anLastData = a;
+      const c = a.cards || {};
+      const setC = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      setC('c-total', c.totalUsers != null ? c.totalUsers : '—');
+      setC('c-online', a.online != null ? a.online : '—');
+      setC('c-today', c.todayNew != null ? c.todayNew : 0);
+      setC('c-rating', c.avgRating ? Number(c.avgRating).toFixed(1) : '—');
+
+      const grid = 'rgba(255,255,255,.07)', tickc = '#9aa0aa';
+      const axis = { grid: { color: grid }, ticks: { color: tickc } };
+      const noLeg = { plugins: { legend: { display: false } } };
+
+      const vd = a.visitsByDay || [];
+      anChart('ch-visits', {
+        type: 'line',
+        data: { labels: vd.map((d) => d.day.slice(5)), datasets: [{ data: vd.map((d) => d.n), borderColor: '#5b6cff', backgroundColor: 'rgba(91,108,255,.18)', fill: true, tension: .3, pointRadius: 2 }] },
+        options: { ...noLeg, scales: { x: axis, y: { ...axis, beginAtZero: true, ticks: { ...axis.ticks, precision: 0 } } } },
+      });
+      const hours = a.hours || [];
+      const hmax = Math.max(0, ...hours);
+      anChart('ch-hours', {
+        type: 'bar',
+        data: { labels: hours.map((_, h) => h), datasets: [{ data: hours, backgroundColor: hours.map((v) => (v > 0 && v === hmax) ? '#f5b301' : 'rgba(34,197,94,.6)') }] },
+        options: { ...noLeg, scales: { x: axis, y: { ...axis, beginAtZero: true, ticks: { ...axis.ticks, precision: 0 } } } },
+      });
+      const cities = (a.cities || []).slice();
+      const top = cities.slice(0, 5);
+      const otherN = cities.slice(5).reduce((s, x) => s + x.n, 0);
+      const clabels = top.map((x) => x.city).concat(otherN > 0 ? ['Другие'] : []);
+      const cvals = top.map((x) => x.n).concat(otherN > 0 ? [otherN] : []);
+      anChart('ch-cities', {
+        type: 'doughnut',
+        data: { labels: clabels, datasets: [{ data: cvals, backgroundColor: ['#5b6cff', '#22c55e', '#f5b301', '#a855f7', '#ef4444', '#64748b'], borderWidth: 0 }] },
+        options: { plugins: { legend: { position: 'right', labels: { color: tickc, boxWidth: 12 } } } },
+      });
+      const rd = a.ratingByDay || [];
+      anChart('ch-rating', {
+        type: 'line',
+        data: { labels: rd.map((d) => d.day.slice(5)), datasets: [{ data: rd.map((d) => d.avg), borderColor: '#f5b301', backgroundColor: 'rgba(245,179,1,.15)', fill: true, tension: .3, pointRadius: 2 }] },
+        options: { ...noLeg, scales: { x: axis, y: { ...axis, min: 0, max: 5 } } },
+      });
+    }
+
+    // Экспорт текущей аналитики в CSV
+    function anCSV() {
+      if (!anLastData) return;
+      const a = anLastData, rows = [];
+      rows.push(['Метрика', 'Значение']);
+      rows.push(['Всего пользователей', a.cards ? a.cards.totalUsers : '']);
+      rows.push(['Онлайн сейчас', a.online]);
+      rows.push(['Новых за сегодня', a.cards ? a.cards.todayNew : '']);
+      rows.push(['Средний рейтинг', a.cards ? a.cards.avgRating : '']);
+      rows.push([]); rows.push(['Дата', 'Посещения']);
+      (a.visitsByDay || []).forEach((d) => rows.push([d.day, d.n]));
+      rows.push([]); rows.push(['Час', 'Активность']);
+      (a.hours || []).forEach((v, h) => rows.push([h, v]));
+      rows.push([]); rows.push(['Город', 'Пользователей']);
+      (a.cities || []).forEach((c) => rows.push([c.city, c.n]));
+      rows.push([]); rows.push(['Дата', 'Средний рейтинг']);
+      (a.ratingByDay || []).forEach((d) => rows.push([d.day, d.avg]));
+      const csv = rows.map((r) => r.map((x) => '"' + String(x == null ? '' : x).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url; link.download = 'analytics-' + new Date().toISOString().slice(0, 10) + '.csv';
+      link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    // Обработчики панели фильтров
+    document.getElementById('an-period').addEventListener('change', () => {
+      const custom = document.getElementById('an-period').value === 'custom';
+      document.querySelectorAll('.an-custom').forEach((el) => el.classList.toggle('hidden', !custom));
+      if (!custom) loadAnalytics();
+    });
+    document.querySelectorAll('#an-from,#an-to').forEach((el) =>
+      el.addEventListener('change', () => { if (document.getElementById('an-period').value === 'custom') loadAnalytics(); }));
+    document.getElementById('an-refresh').addEventListener('click', () => loadAnalytics(true));
+    document.getElementById('an-csv').addEventListener('click', anCSV);
+
+    // --- Сброс статистики: двухшаговое подтверждение (без всплывающих окон) ---
+    let resetArmed = false, resetTimer = null;
+    document.getElementById('reset-stats-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('reset-stats-btn');
+      const msg = document.getElementById('reset-stats-msg');
+      if (!resetArmed) {
+        resetArmed = true;
+        btn.textContent = 'Точно сбросить? Нажмите ещё раз';
+        msg.textContent = 'Отмена через 5 секунд';
+        resetTimer = setTimeout(() => {
+          resetArmed = false; btn.textContent = 'Сбросить статистику'; msg.textContent = '';
+        }, 5000);
+        return;
+      }
+      clearTimeout(resetTimer); resetArmed = false;
+      btn.textContent = 'Сбросить статистику'; btn.disabled = true; msg.textContent = 'Сброс…';
+      try {
+        await api('/admin/api/reset-stats', { method: 'POST' });
+        msg.textContent = 'Статистика сброшена';
+        loadAnalytics();
+        if (typeof loadUsers === 'function') loadUsers();
+      } catch (e) {
+        msg.textContent = 'Ошибка: ' + (e.message || 'не удалось');
+      }
+      btn.disabled = false;
+    });
 
     // --- Пользователи ---
     async function loadUsers() {

@@ -266,8 +266,18 @@ const stmts = {
   // Популярные города (по профилям пользователей)
   topCities: db.prepare(
     `SELECT city, COUNT(*) AS n FROM users WHERE city IS NOT NULL AND city != ''
-       GROUP BY city ORDER BY n DESC LIMIT 10`
+       GROUP BY city ORDER BY n DESC LIMIT 20`
   ),
+  // --- Аналитика по произвольному диапазону дат ---
+  loginsInRange: db.prepare(
+    `SELECT createdAt FROM activity_logs WHERE type = 'login' AND createdAt >= ? AND createdAt <= ?`
+  ),
+  uniqueInRange: db.prepare(
+    `SELECT COUNT(DISTINCT userId) AS n FROM activity_logs WHERE type = 'login' AND createdAt >= ? AND createdAt <= ?`
+  ),
+  newUsersInRange: db.prepare('SELECT COUNT(*) AS n FROM users WHERE createdAt >= ? AND createdAt <= ?'),
+  ratingsInRange: db.prepare('SELECT rating, created_at FROM ratings WHERE created_at >= ? AND created_at <= ?'),
+  avgRatingAll: db.prepare('SELECT ROUND(AVG(rating), 2) AS avg, COUNT(*) AS n FROM ratings'),
 };
 
 // ----------------------------------------------------------------------------
@@ -526,20 +536,76 @@ function getReactions(msgId) {
 }
 
 // --- Аналитика для админки ---
-function getAnalytics() {
+// Ключ дня 'YYYY-MM-DD' по локальному времени
+function dayKey(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+// Заполнить все дни диапазона (чтобы линия была непрерывной), но не более 92 точек
+function fillDays(fromMs, toMs, map) {
+  const out = [];
+  const start = new Date(fromMs); start.setHours(0, 0, 0, 0);
+  const end = new Date(toMs); end.setHours(0, 0, 0, 0);
+  let days = Math.round((end - start) / 86400000) + 1;
+  if (days < 1) days = 1;
+  if (days > 92) {
+    // слишком широкий диапазон — отдаём только дни с данными
+    return Object.keys(map).sort().map((k) => ({ day: k, n: map[k] }));
+  }
+  for (let i = 0; i < days; i++) {
+    const d = new Date(start.getTime() + i * 86400000);
+    const k = dayKey(d);
+    out.push({ day: k, n: map[k] || 0 });
+  }
+  return out;
+}
+
+// Аналитика по диапазону [fromMs, toMs]. Без аргументов — последние 30 дней.
+function getAnalytics(fromMs, toMs) {
   const now = Date.now();
   const day = 24 * 60 * 60 * 1000;
-  const uniqueDay = stmts.uniqueSince.get(now - day).n;
-  const uniqueWeek = stmts.uniqueSince.get(now - 7 * day).n;
-  const uniqueMonth = stmts.uniqueSince.get(now - 30 * day).n;
-  // Пиковые часы за последние 30 дней (0..23)
+  const to = toMs || now;
+  const from = fromMs || (to - 30 * day);
+
+  // Карточки-виджеты
+  const totalUsers = stmts.countUsers.get().n;
+  const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+  const todayNew = stmts.newUsersInRange.get(startToday.getTime(), now).n;
+  const ar = stmts.avgRatingAll.get();
+  const avgRating = ar && ar.avg ? ar.avg : 0;
+  const uniqueInRange = stmts.uniqueInRange.get(from, to).n;
+  const newInRange = stmts.newUsersInRange.get(from, to).n;
+
+  // Посещаемость по дням + пиковые часы (из login-событий в диапазоне)
   const hours = new Array(24).fill(0);
-  stmts.loginsSince.all(now - 30 * day).forEach((r) => {
-    const h = new Date(r.createdAt).getHours();
-    hours[h] = (hours[h] || 0) + 1;
+  const byDay = {};
+  stmts.loginsInRange.all(from, to).forEach((r) => {
+    const d = new Date(r.createdAt);
+    hours[d.getHours()]++;
+    const k = dayKey(d);
+    byDay[k] = (byDay[k] || 0) + 1;
   });
+  const visitsByDay = fillDays(from, to, byDay);
+
+  // Динамика рейтинга по дням (средняя оценка за день)
+  const rSum = {}, rCnt = {};
+  stmts.ratingsInRange.all(from, to).forEach((r) => {
+    const k = dayKey(new Date(r.created_at));
+    rSum[k] = (rSum[k] || 0) + r.rating;
+    rCnt[k] = (rCnt[k] || 0) + 1;
+  });
+  const ratingByDay = Object.keys(rCnt).sort().map((k) => ({
+    day: k, avg: Math.round((rSum[k] / rCnt[k]) * 100) / 100, n: rCnt[k],
+  }));
+
   const cities = stmts.topCities.all();
-  return { unique: { day: uniqueDay, week: uniqueWeek, month: uniqueMonth }, hours, cities };
+  return {
+    range: { from, to },
+    cards: { totalUsers, todayNew, avgRating, uniqueInRange, newInRange },
+    visitsByDay, hours, cities, ratingByDay,
+  };
 }
 
 // Оценка собеседника (1–5). Возвращает обновлённый средний рейтинг.

@@ -57,6 +57,11 @@ function parseAdmins() {
 }
 const ADMINS = parseAdmins();
 
+// Кеш аналитики: ключ = «from|to», значение = { t, data }. TTL 5 минут —
+// раздел открывается мгновенно, тяжёлые агрегаты не считаются на каждый заход.
+const analyticsCache = new Map();
+const ANALYTICS_TTL = 5 * 60 * 1000;
+
 // Хуки из основного сервера (например, разрыв сессий забаненного)
 let hooks = { kickUser: () => {} };
 
@@ -149,10 +154,25 @@ function mount(app, io, providedHooks) {
     res.json({ admin: db.allAdminLogs(), activity: db.allActivity() });
   });
 
-  // --- Аналитика (посещаемость, пиковые часы, популярные города) ---
+  // --- Аналитика по диапазону дат (?from=&to= в мс). Кеш 5 мин; ?fresh=1 — обход. ---
   app.get('/admin/api/analytics', auth, (req, res) => {
-    try { res.json(db.getAnalytics()); }
-    catch (e) { res.json({ unique: { day: 0, week: 0, month: 0 }, hours: new Array(24).fill(0), cities: [] }); }
+    const to = parseInt(req.query.to, 10) || Date.now();
+    const from = parseInt(req.query.from, 10) || (to - 30 * 24 * 60 * 60 * 1000);
+    const fresh = req.query.fresh === '1';
+    const key = from + '|' + to;
+    // «Онлайн сейчас» считаем свежим на каждый ответ (не кешируем)
+    const respond = (data, cachedFlag) => res.json({ ...data, online: io.engine.clientsCount || 0, cached: !!cachedFlag });
+    try {
+      const cached = analyticsCache.get(key);
+      if (!fresh && cached && (Date.now() - cached.t) < ANALYTICS_TTL) {
+        return respond(cached.data, true);
+      }
+      const data = db.getAnalytics(from, to);
+      analyticsCache.set(key, { t: Date.now(), data });
+      respond(data, false);
+    } catch (e) {
+      res.json({ range: { from, to }, cards: {}, visitsByDay: [], hours: new Array(24).fill(0), cities: [], ratingByDay: [], online: 0 });
+    }
   });
 
   // --- Сброс статистики (только главный админ): чистит оценки, логи активности,
@@ -160,6 +180,7 @@ function mount(app, io, providedHooks) {
   app.post('/admin/api/reset-stats', auth, superOnly, (req, res) => {
     try {
       const cleared = db.resetStats();
+      analyticsCache.clear(); // сброшенные данные больше не отдаём из кеша
       db.addAdminLog(req.admin.login, 'reset_stats', '');
       res.json({ ok: true, cleared });
     } catch (e) {
