@@ -690,6 +690,14 @@
           </span>
           <i class="fa-solid fa-chevron-right"></i>
         </button>
+        <!-- Причина жалобы (появляется при выборе «Пожаловаться») -->
+        <div class="report-reason hidden" id="report-reason">
+          <label class="s-field-label">Причина жалобы</label>
+          <textarea id="report-reason-text" class="s-input" rows="3" maxlength="500"
+            placeholder="Опишите, что произошло (обязательно)"></textarea>
+          <p class="s-hint" id="report-reason-hint"></p>
+          <button class="btn btn-danger btn-big" id="report-send">Отправить жалобу</button>
+        </div>
         <button class="btn btn-light btn-big" data-close-modal="report-modal">Отменить</button>
       </div>
     </div>

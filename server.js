@@ -474,8 +474,9 @@ io.on('connection', (socket) => {
     const me = users.get(socket.id);
     if (!me || !me.partnerId) return;
     const partner = users.get(me.partnerId);
-    // Записываем жалобу в БД (для админ-панели)
-    db.addReport(me.uuid, partner ? partner.uuid : me.partnerId, (data && data.reason) || '');
+    // Записываем жалобу в БД (для админ-панели), причина ограничена по длине
+    const reason = String((data && data.reason) || '').slice(0, 500);
+    db.addReport(me.uuid, partner ? partner.uuid : me.partnerId, reason);
     endOneToOne(socket); // уведомит собеседника событием peer:left
   });
 

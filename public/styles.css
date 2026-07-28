@@ -1423,6 +1423,11 @@ textarea.s-input { resize: vertical; font-family: inherit; }
 .rate-star:hover { transform: scale(1.12); }
 .rate-star.on { color: #f5b301; }
 
+/* Поле причины жалобы */
+.report-reason { margin: 4px 0 12px; text-align: left; }
+.report-reason .s-field-label { display: block; margin-bottom: 6px; }
+.report-reason textarea { width: 100%; resize: vertical; margin-bottom: 4px; }
+
 /* ---------- Мой ID ---------- */
 .id-field { display: flex; align-items: center; gap: 8px; }
 .id-value {

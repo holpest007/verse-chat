@@ -554,6 +554,20 @@ function getAvgRating(id) {
   return { avg: row && row.avg ? row.avg : 0, count: row ? row.n : 0 };
 }
 
+// Полный сброс статистики: оценки, логи активности, уровни/XP/время/разговоры,
+// достижения и челленджи. Пользователей, роли, подписки и жалобы НЕ трогаем.
+function resetStats() {
+  db.exec(`
+    DELETE FROM ratings;
+    DELETE FROM activity_logs;
+    DELETE FROM user_stats;
+    DELETE FROM user_achievements;
+    DELETE FROM challenge_claims;
+    UPDATE users SET convCount = 0, totalDuration = 0, points = 0, level = 1;
+  `);
+  return true;
+}
+
 // Сводная статистика для дашборда админки
 function getStats() {
   const total = stmts.countUsers.get().n;
@@ -580,6 +594,7 @@ module.exports = {
   addActivity,
   addRating,
   getAvgRating,
+  resetStats,
   addMessage,
   getMessages,
   pruneMessages,

@@ -155,6 +155,18 @@ function mount(app, io, providedHooks) {
     catch (e) { res.json({ unique: { day: 0, week: 0, month: 0 }, hours: new Array(24).fill(0), cities: [] }); }
   });
 
+  // --- Сброс статистики (только главный админ): чистит оценки, логи активности,
+  //     уровни/XP/время/разговоры и достижения. Пользователей и роли НЕ трогает. ---
+  app.post('/admin/api/reset-stats', auth, superOnly, (req, res) => {
+    try {
+      const cleared = db.resetStats();
+      db.addAdminLog(req.admin.login, 'reset_stats', '');
+      res.json({ ok: true, cleared });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: 'Не удалось сбросить статистику' });
+    }
+  });
+
   // --- Сама страница админ-панели ---
   app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));

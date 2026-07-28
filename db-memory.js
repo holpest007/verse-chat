@@ -219,6 +219,16 @@ function addRating(fromId, toId, rating) {
   ratings.push({ fromId: fromId || '', toId, rating: r, createdAt: Date.now() });
   return getAvgRating(toId);
 }
+// Полный сброс статистики (аналог db-sqlite): чистим оценки, логи, ачивки,
+// челленджи и обнуляем счётчики пользователей. Пользователей/роли не трогаем.
+function resetStats() {
+  ratings.length = 0;
+  activityLogs.length = 0;
+  userAch.clear();
+  claims.clear();
+  for (const u of users.values()) { u.convCount = 0; u.totalDuration = 0; u.points = 0; u.level = 1; }
+  return true;
+}
 
 function addReaction(userId, msgId, emoji) {
   reactions.push({ userId, msgId: String(msgId).slice(0, 64), emoji: String(emoji).slice(0, 16), createdAt: Date.now() });
@@ -252,7 +262,7 @@ module.exports = {
   banUser, setRole, touch, addReport, addAdminLog, addActivity, addMessage, getMessages,
   pruneMessages, recordConversation, getUserStats, addXp, checkAchievements, getAchievements,
   getLeaderboard, getChallenges, claimChallenge, getFullStats, addReaction, getReactions, getAnalytics, getStats,
-  addRating, getAvgRating,
+  addRating, getAvgRating, resetStats,
   allUsers: () => [...users.values()]
     .map((u) => { const r = getAvgRating(u.id); return { ...u, avgRating: r.avg || null, ratingCount: r.count }; })
     .sort((a, b) => b.createdAt - a.createdAt),

@@ -1001,7 +1001,13 @@ document.querySelectorAll('[data-rules]').forEach((b) =>
 //  МОДАЛКА «ПОЖАЛОВАТЬСЯ ИЛИ ЗАБЛОКИРОВАТЬ»
 // ==========================================================================
 document.querySelectorAll('[data-report]').forEach((b) =>
-  b.addEventListener('click', () => $('#report-modal').classList.remove('hidden'))
+  b.addEventListener('click', () => {
+    // Сбрасываем поле причины при каждом открытии
+    $('#report-reason').classList.add('hidden');
+    $('#report-reason-text').value = '';
+    $('#report-reason-hint').textContent = '';
+    $('#report-modal').classList.remove('hidden');
+  })
 );
 // Закрытие любой модалки (крестик, кнопка, клик по фону)
 document.querySelectorAll('[data-close-modal]').forEach((b) =>
@@ -1030,10 +1036,21 @@ function stopCurrentModeEvent() {
   return currentMode === 'voice' ? 'voice:stop' : (currentMode === 'video' ? 'video:stop' : 'text:stop');
 }
 
-// Пожаловаться: сервер завершает чат для обоих
+// Пожаловаться: сначала раскрываем поле причины (описание обязательно)
 $('#do-report').addEventListener('click', () => {
-  socket.emit('report_user');
+  $('#report-reason').classList.remove('hidden');
+  $('#report-reason-hint').textContent = '';
+  $('#report-reason-text').focus();
+});
+// Отправка жалобы с текстом причины
+$('#report-send').addEventListener('click', () => {
+  const ta = $('#report-reason-text');
+  const reason = ta.value.trim();
+  if (!reason) { $('#report-reason-hint').textContent = 'Опишите причину жалобы'; ta.focus(); return; }
+  socket.emit('report_user', { reason });
   socket.emit(stopCurrentModeEvent());
+  ta.value = '';
+  $('#report-reason').classList.add('hidden');
   endCurrentChat('Жалоба отправлена');
 });
 // Заблокировать: сервер добавит собеседника в чёрный список
