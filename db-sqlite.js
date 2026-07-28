@@ -98,9 +98,11 @@ db.exec(`
     id             INTEGER PRIMARY KEY,
     name           TEXT,
     description    TEXT,
-    icon           TEXT,
-    condition_type TEXT,      -- 'calls' | 'minutes' | 'level'
-    condition_value INTEGER
+    icon           TEXT,      -- эмодзи
+    condition_type TEXT,      -- calls|minutes|ratings|avg_rating|groups|topics|photos|reg_days|modes|nights|combo
+    condition_value INTEGER,
+    condition_extra INTEGER DEFAULT 0, -- доп. параметр (напр. мин. число оценок для avg_rating)
+    category       TEXT DEFAULT ''
   );
 
   -- Полученные пользователями достижения
@@ -121,20 +123,64 @@ db.exec(`
   );
 `);
 
-// Справочник достижений — фиксированный список (сид при старте)
+// Справочник достижений — 40+ ачивок по категориям (сид/апсерт при старте).
+// icon — эмодзи; condition_extra используется для avg_rating (мин. число оценок).
 const ACHIEVEMENTS = [
-  { id: 1, name: 'Первый разговор', description: 'Проведите свой первый разговор', icon: 'fa-comment-dots', condition_type: 'calls', condition_value: 1 },
-  { id: 2, name: 'Разговорчивый', description: '10 разговоров', icon: 'fa-comments', condition_type: 'calls', condition_value: 10 },
-  { id: 3, name: 'Легенда общения', description: '100 разговоров', icon: 'fa-crown', condition_type: 'calls', condition_value: 100 },
-  { id: 4, name: 'Час в эфире', description: '100 минут в чате', icon: 'fa-clock', condition_type: 'minutes', condition_value: 100 },
-  { id: 5, name: 'Марафонец', description: '500 минут в чате', icon: 'fa-hourglass-half', condition_type: 'minutes', condition_value: 500 },
-  { id: 6, name: 'Восходящая звезда', description: 'Достигните 5 уровня', icon: 'fa-star', condition_type: 'level', condition_value: 5 },
-  { id: 7, name: 'Мастер общения', description: 'Достигните 10 уровня', icon: 'fa-medal', condition_type: 'level', condition_value: 10 },
+  // 1. Разговоры (количество)
+  { id: 1, name: 'Первый контакт', description: 'Провести 1 разговор', icon: '👋', condition_type: 'calls', condition_value: 1, category: 'Разговоры' },
+  { id: 2, name: 'Болтун', description: 'Провести 10 разговоров', icon: '🗣️', condition_type: 'calls', condition_value: 10, category: 'Разговоры' },
+  { id: 3, name: 'Общительный', description: 'Провести 25 разговоров', icon: '💬', condition_type: 'calls', condition_value: 25, category: 'Разговоры' },
+  { id: 4, name: 'Мастер общения', description: 'Провести 50 разговоров', icon: '🏆', condition_type: 'calls', condition_value: 50, category: 'Разговоры' },
+  { id: 5, name: 'Легендарный собеседник', description: 'Провести 100 разговоров', icon: '👑', condition_type: 'calls', condition_value: 100, category: 'Разговоры' },
+  { id: 6, name: 'Гуру чата', description: 'Провести 250 разговоров', icon: '🌟', condition_type: 'calls', condition_value: 250, category: 'Разговоры' },
+  { id: 7, name: 'Бессмертный болтун', description: 'Провести 500 разговоров', icon: '⚡', condition_type: 'calls', condition_value: 500, category: 'Разговоры' },
+  // 2. Время в чате (минуты)
+  { id: 8, name: 'Новичок', description: '5 минут в чате', icon: '🕐', condition_type: 'minutes', condition_value: 5, category: 'Время' },
+  { id: 9, name: 'Увлечённый', description: '30 минут в чате', icon: '⏳', condition_type: 'minutes', condition_value: 30, category: 'Время' },
+  { id: 10, name: 'Знаток', description: '60 минут (1 час) в чате', icon: '⌛', condition_type: 'minutes', condition_value: 60, category: 'Время' },
+  { id: 11, name: 'Любитель поговорить', description: '300 минут (5 часов) в чате', icon: '🎯', condition_type: 'minutes', condition_value: 300, category: 'Время' },
+  { id: 12, name: 'Профессионал', description: '600 минут (10 часов) в чате', icon: '💎', condition_type: 'minutes', condition_value: 600, category: 'Время' },
+  { id: 13, name: 'Гуру времени', description: '1500 минут (25 часов) в чате', icon: '⏰', condition_type: 'minutes', condition_value: 1500, category: 'Время' },
+  { id: 14, name: 'Ветеран эфира', description: '5000 минут (~83 часа) в чате', icon: '🏅', condition_type: 'minutes', condition_value: 5000, category: 'Время' },
+  // 3. Оценки (количество полученных)
+  { id: 15, name: 'Первая оценка', description: 'Получить первую оценку', icon: '⭐', condition_type: 'ratings', condition_value: 1, category: 'Оценки' },
+  { id: 16, name: 'Популярный', description: 'Получить 5 оценок', icon: '🌟', condition_type: 'ratings', condition_value: 5, category: 'Оценки' },
+  { id: 17, name: 'Любимец', description: 'Получить 10 оценок', icon: '💖', condition_type: 'ratings', condition_value: 10, category: 'Оценки' },
+  { id: 18, name: 'Звезда общения', description: 'Получить 25 оценок', icon: '✨', condition_type: 'ratings', condition_value: 25, category: 'Оценки' },
+  { id: 19, name: 'Икона чата', description: 'Получить 50 оценок', icon: '💫', condition_type: 'ratings', condition_value: 50, category: 'Оценки' },
+  // 4. Качество оценок (средний рейтинг)
+  { id: 20, name: 'Приятный собеседник', description: 'Средний рейтинг ≥ 4.5 (мин. 3 оценки)', icon: '😊', condition_type: 'avg_rating', condition_value: 45, condition_extra: 3, category: 'Качество' },
+  { id: 21, name: 'Восхитительный', description: 'Средний рейтинг ≥ 4.8 (мин. 5 оценок)', icon: '😍', condition_type: 'avg_rating', condition_value: 48, condition_extra: 5, category: 'Качество' },
+  { id: 22, name: 'Идеальный', description: 'Средний рейтинг = 5.0 (мин. 10 оценок)', icon: '🤩', condition_type: 'avg_rating', condition_value: 50, condition_extra: 10, category: 'Качество' },
+  // 5. Групповые чаты
+  { id: 23, name: 'Командный игрок', description: 'Участие в групповом чате 1 раз', icon: '👥', condition_type: 'groups', condition_value: 1, category: 'Группы' },
+  { id: 24, name: 'Социалист', description: 'Участие в групповом чате 10 раз', icon: '🤝', condition_type: 'groups', condition_value: 10, category: 'Группы' },
+  { id: 25, name: 'Друг компании', description: 'Участие в групповом чате 25 раз', icon: '🎉', condition_type: 'groups', condition_value: 25, category: 'Группы' },
+  // 6. Темы для разговора
+  { id: 26, name: 'Любознательный', description: 'Использовать тему разговора 3 раза', icon: '🤔', condition_type: 'topics', condition_value: 3, category: 'Темы' },
+  { id: 27, name: 'Интеллектуал', description: 'Использовать тему разговора 15 раз', icon: '🧠', condition_type: 'topics', condition_value: 15, category: 'Темы' },
+  { id: 28, name: 'Эрудит', description: 'Использовать тему разговора 50 раз', icon: '📚', condition_type: 'topics', condition_value: 50, category: 'Темы' },
+  // 7. Фото в текстовом чате
+  { id: 29, name: 'Фотограф-любитель', description: 'Отправить фото 1 раз', icon: '📸', condition_type: 'photos', condition_value: 1, category: 'Фото' },
+  { id: 30, name: 'Опытный фотограф', description: 'Отправить фото 10 раз', icon: '🖼️', condition_type: 'photos', condition_value: 10, category: 'Фото' },
+  { id: 31, name: 'Профи-фотограф', description: 'Отправить фото 50 раз', icon: '📷', condition_type: 'photos', condition_value: 50, category: 'Фото' },
+  // 8. Временные вехи (стаж по created_at)
+  { id: 32, name: 'Новичок в доме', description: 'В сервисе 1 день', icon: '🆕', condition_type: 'reg_days', condition_value: 1, category: 'Вехи' },
+  { id: 33, name: 'Старожил', description: 'В сервисе 7 дней', icon: '📆', condition_type: 'reg_days', condition_value: 7, category: 'Вехи' },
+  { id: 34, name: 'Постоянный', description: 'В сервисе 30 дней (1 месяц)', icon: '📅', condition_type: 'reg_days', condition_value: 30, category: 'Вехи' },
+  { id: 35, name: 'Завсегдатай', description: 'В сервисе 90 дней (3 месяца)', icon: '🗓️', condition_type: 'reg_days', condition_value: 90, category: 'Вехи' },
+  { id: 36, name: 'Преданный', description: 'В сервисе 180 дней (6 месяцев)', icon: '📋', condition_type: 'reg_days', condition_value: 180, category: 'Вехи' },
+  { id: 37, name: 'Ветеран', description: 'В сервисе 365 дней (1 год)', icon: '🎂', condition_type: 'reg_days', condition_value: 365, category: 'Вехи' },
+  { id: 38, name: 'Легенда', description: 'В сервисе 730 дней (2 года)', icon: '🔥', condition_type: 'reg_days', condition_value: 730, category: 'Вехи' },
+  // 9. Специальные
+  { id: 39, name: 'Все виды общения', description: 'Провести разговор в голосовом, видео и текстовом чате', icon: '💯', condition_type: 'modes', condition_value: 3, category: 'Специальные' },
+  { id: 40, name: 'Социальная бабочка', description: '50+ разговоров, 10+ оценок и 500+ минут в чате', icon: '🦋', condition_type: 'combo', condition_value: 0, category: 'Специальные' },
+  { id: 41, name: 'Ночной режим', description: 'Провести 5+ разговоров между 00:00 и 06:00', icon: '🌙', condition_type: 'nights', condition_value: 5, category: 'Специальные' },
 ];
-(function seedAchievements() {
-  const up = db.prepare('INSERT OR REPLACE INTO achievements (id, name, description, icon, condition_type, condition_value) VALUES (?, ?, ?, ?, ?, ?)');
-  for (const a of ACHIEVEMENTS) up.run(a.id, a.name, a.description, a.icon, a.condition_type, a.condition_value);
-})();
+function seedAchievements() {
+  const up = db.prepare('INSERT OR REPLACE INTO achievements (id, name, description, icon, condition_type, condition_value, condition_extra, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  for (const a of ACHIEVEMENTS) up.run(a.id, a.name, a.description, a.icon, a.condition_type, a.condition_value, a.condition_extra || 0, a.category || '');
+}
 
 // Миграция: добавляем новые колонки в уже существующую базу (без потери данных)
 for (const col of [
@@ -145,9 +191,23 @@ for (const col of [
   "totalDuration INTEGER DEFAULT 0", // суммарная длительность разговоров, сек
   "points INTEGER DEFAULT 0",        // очки для системы уровней
   "level INTEGER DEFAULT 1",         // текущий уровень (1..10+)
+  // Счётчики для достижений
+  "groupCount INTEGER DEFAULT 0",    // участий в групповых чатах
+  "topicCount INTEGER DEFAULT 0",    // использований тем разговора
+  "photoCount INTEGER DEFAULT 0",    // отправленных фото
+  "nightCount INTEGER DEFAULT 0",    // разговоров ночью (00:00–06:00)
+  "modeVoice INTEGER DEFAULT 0",     // был ли голосовой разговор
+  "modeVideo INTEGER DEFAULT 0",     // был ли видеочат
+  "modeText INTEGER DEFAULT 0",      // был ли текстовый чат
 ]) {
   try { db.exec('ALTER TABLE users ADD COLUMN ' + col); } catch (e) { /* колонка уже есть */ }
 }
+// Миграция таблицы достижений (для уже существующих баз) — ДО сида,
+// чтобы сид мог писать в новые колонки condition_extra/category.
+for (const col of ['condition_extra INTEGER DEFAULT 0', "category TEXT DEFAULT ''"]) {
+  try { db.exec('ALTER TABLE achievements ADD COLUMN ' + col); } catch (e) { /* уже есть */ }
+}
+seedAchievements(); // теперь колонки точно существуют
 
 // Оценки собеседников после разговора (1–5 звёзд). Само окно оценки появится в
 // фазе рейтинга; таблица и средний рейтинг заводятся заранее — под колонку админки.
@@ -278,6 +338,17 @@ const stmts = {
   newUsersInRange: db.prepare('SELECT COUNT(*) AS n FROM users WHERE createdAt >= ? AND createdAt <= ?'),
   ratingsInRange: db.prepare('SELECT rating, created_at FROM ratings WHERE created_at >= ? AND created_at <= ?'),
   avgRatingAll: db.prepare('SELECT ROUND(AVG(rating), 2) AS avg, COUNT(*) AS n FROM ratings'),
+};
+
+// Инкременты счётчиков достижений (mode-колонки — установка флага в 1)
+const incStmts = {
+  groupCount: db.prepare('UPDATE users SET groupCount = groupCount + 1 WHERE id = ?'),
+  topicCount: db.prepare('UPDATE users SET topicCount = topicCount + 1 WHERE id = ?'),
+  photoCount: db.prepare('UPDATE users SET photoCount = photoCount + 1 WHERE id = ?'),
+  nightCount: db.prepare('UPDATE users SET nightCount = nightCount + 1 WHERE id = ?'),
+  modeVoice: db.prepare('UPDATE users SET modeVoice = 1 WHERE id = ?'),
+  modeVideo: db.prepare('UPDATE users SET modeVideo = 1 WHERE id = ?'),
+  modeText: db.prepare('UPDATE users SET modeText = 1 WHERE id = ?'),
 };
 
 // ----------------------------------------------------------------------------
@@ -423,37 +494,103 @@ function getUserStats(id) {
 }
 
 // --- Достижения ---
+// Контекст метрик пользователя для проверки условий
+function statCtx(u) {
+  const r = getAvgRating(u.id);
+  const modesDone = (u.modeVoice ? 1 : 0) + (u.modeVideo ? 1 : 0) + (u.modeText ? 1 : 0);
+  const regDays = u.createdAt ? Math.floor((Date.now() - u.createdAt) / 86400000) : 0;
+  return {
+    calls: u.convCount || 0,
+    minutes: Math.floor((u.totalDuration || 0) / 60),
+    level: u.level || 1,
+    ratingsCount: r.count, avgRating: r.avg,
+    groups: u.groupCount || 0, topics: u.topicCount || 0, photos: u.photoCount || 0,
+    nights: u.nightCount || 0, modesDone, regDays,
+  };
+}
+// Выполнено ли условие достижения при данном контексте
+function achMet(a, ctx) {
+  switch (a.condition_type) {
+    case 'calls': return ctx.calls >= a.condition_value;
+    case 'minutes': return ctx.minutes >= a.condition_value;
+    case 'level': return ctx.level >= a.condition_value;
+    case 'ratings': return ctx.ratingsCount >= a.condition_value;
+    case 'avg_rating': return ctx.ratingsCount >= (a.condition_extra || 0) && ctx.avgRating >= a.condition_value / 10;
+    case 'groups': return ctx.groups >= a.condition_value;
+    case 'topics': return ctx.topics >= a.condition_value;
+    case 'photos': return ctx.photos >= a.condition_value;
+    case 'reg_days': return ctx.regDays >= a.condition_value;
+    case 'modes': return ctx.modesDone >= a.condition_value;
+    case 'nights': return ctx.nights >= a.condition_value;
+    case 'combo': return ctx.calls >= 50 && ctx.ratingsCount >= 10 && ctx.minutes >= 500;
+    default: return false;
+  }
+}
+// Текущее числовое значение прогресса (null — прогресс-бар неприменим)
+function achProgress(a, ctx) {
+  switch (a.condition_type) {
+    case 'calls': return ctx.calls;
+    case 'minutes': return ctx.minutes;
+    case 'level': return ctx.level;
+    case 'ratings': return ctx.ratingsCount;
+    case 'groups': return ctx.groups;
+    case 'topics': return ctx.topics;
+    case 'photos': return ctx.photos;
+    case 'reg_days': return ctx.regDays;
+    case 'modes': return ctx.modesDone;
+    case 'nights': return ctx.nights;
+    default: return null; // avg_rating, combo — без числового бара
+  }
+}
+
 // Проверить и разблокировать новые достижения; вернуть список новых
 function checkAchievements(id) {
   const u = getUser(id);
   if (!u) return [];
-  const minutes = Math.floor((u.totalDuration || 0) / 60);
+  const ctx = statCtx(u);
   const have = new Set(stmts.userAchievements.all(id).map((r) => r.achievement_id));
   const newly = [];
   for (const a of stmts.allAchievements.all()) {
     if (have.has(a.id)) continue;
-    let ok = false;
-    if (a.condition_type === 'calls') ok = (u.convCount || 0) >= a.condition_value;
-    else if (a.condition_type === 'minutes') ok = minutes >= a.condition_value;
-    else if (a.condition_type === 'level') ok = (u.level || 1) >= a.condition_value;
-    if (ok) { stmts.unlockAchievement.run(id, a.id, Date.now()); newly.push(a); }
+    if (achMet(a, ctx)) { stmts.unlockAchievement.run(id, a.id, Date.now()); newly.push(a); }
   }
   return newly;
 }
-// Все достижения со статусом разблокировки и прогрессом
+// Все достижения со статусом разблокировки, категорией и прогрессом
 function getAchievements(id) {
-  const u = getUser(id) || {};
-  const minutes = Math.floor((u.totalDuration || 0) / 60);
+  const u = getUser(id) || { id };
+  const ctx = statCtx(u);
   const have = new Map(stmts.userAchievements.all(id).map((r) => [r.achievement_id, r.unlocked_at]));
   return stmts.allAchievements.all().map((a) => {
-    const cur = a.condition_type === 'calls' ? (u.convCount || 0)
-      : a.condition_type === 'minutes' ? minutes : (u.level || 1);
+    const cur = achProgress(a, ctx);
     return {
       id: a.id, name: a.name, description: a.description, icon: a.icon,
-      target: a.condition_value, progress: Math.min(cur, a.condition_value),
+      category: a.category || 'Прочее',
+      target: a.condition_value,
+      progress: cur == null ? null : Math.min(cur, a.condition_value),
+      numeric: cur != null,
       unlocked: have.has(a.id), unlockedAt: have.get(a.id) || null,
     };
   });
+}
+
+// Инкременты счётчиков для достижений
+function incCounter(id, col) {
+  const s = incStmts[col];
+  if (s) s.run(id);
+}
+function grantAchievement(userId, achId) {
+  stmts.unlockAchievement.run(userId, parseInt(achId, 10), Date.now());
+}
+function incGroup(id) { incCounter(id, 'groupCount'); }
+function incTopic(id) { incCounter(id, 'topicCount'); }
+function incPhoto(id) { incCounter(id, 'photoCount'); }
+// Отметить режим общения (для «Все виды общения») и ночной разговор
+function recordCallExtras(id, mode, isNight) {
+  if (mode === 'voice') incCounter(id, 'modeVoice');
+  else if (mode === 'video') incCounter(id, 'modeVideo');
+  else if (mode === 'text') incCounter(id, 'modeText');
+  if (isNight) incCounter(id, 'nightCount');
 }
 
 // Таблица лидеров (топ-10 по XP)
@@ -669,6 +806,11 @@ module.exports = {
   addXp,
   checkAchievements,
   getAchievements,
+  incGroup,
+  incTopic,
+  incPhoto,
+  recordCallExtras,
+  grantAchievement,
   getLeaderboard,
   getChallenges,
   claimChallenge,

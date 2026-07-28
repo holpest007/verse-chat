@@ -325,6 +325,14 @@ function endOneToOne(socket) {
   }
 }
 
+// Проверить новые достижения пользователя и уведомить его тостом
+function awardCheck(socket, uuid) {
+  try {
+    const newly = db.checkAchievements(uuid);
+    if (newly && newly.length) newly.forEach((a) => socket.emit('achievement:unlocked', { name: a.name, icon: a.icon }));
+  } catch (e) {}
+}
+
 // ============================================================================
 //  ОБРАБОТКА ПОДКЛЮЧЕНИЙ
 // ============================================================================
@@ -346,6 +354,8 @@ io.on('connection', (socket) => {
     return;
   }
   try { db.addActivity(uuid, 'login', ''); } catch (e) {}
+  // Достижения-«вехи» по стажу проверяем при входе (без разговора)
+  awardCheck(socket, uuid);
 
   // Данные пользователя в памяти (для быстрого подбора) + постоянные поля из БД
   users.set(socket.id, {
@@ -572,6 +582,8 @@ io.on('connection', (socket) => {
     const image = /^\/uploads\/[\w.-]+$/.test(String(payload.image || '')) ? payload.image : ''; // только наш URL
     const partner = users.get(me.partnerId);
     io.to(me.partnerId).emit('text:message', { from: 'peer', text, id, image });
+    // Достижения «фотограф»: считаем отправленные фото
+    if (image) { try { db.incPhoto(me.uuid); awardCheck(socket, me.uuid); } catch (e) {} }
     // История переписки: сохраняем у обоих (сейчас доступно всем)
     const stored = image ? (text ? text + ' [фото]' : '[фото]') : text;
     if (premAccess(me)) {
@@ -599,6 +611,8 @@ io.on('connection', (socket) => {
     if (!me) return;
     const topic = String((payload && payload.topic) || '').slice(0, 200);
     if (!topic) return;
+    // Достижения «любознательный/эрудит»: считаем использования тем
+    try { db.incTopic(me.uuid); awardCheck(socket, me.uuid); } catch (e) {}
     if (me.partnerId) io.to(me.partnerId).emit('topic:share', { topic });
     else if (me.groupCode) socket.to(me.groupCode).emit('topic:share', { topic });
   });
@@ -611,11 +625,11 @@ io.on('connection', (socket) => {
     try {
       // Активность пишем ДО начисления, чтобы прогресс дневных челленджей учёл этот звонок
       db.addActivity(me.uuid, 'call', String(dur) + 's');
+      // Режим общения (для «Все виды общения») и ночной разговор (00:00–06:00)
+      db.recordCallExtras(me.uuid, payload && payload.mode, new Date().getHours() < 6);
       const st = db.recordConversation(me.uuid, dur);
       if (st) { me.level = st.level; socket.emit('stat:me', st); }
-      // Проверяем новые достижения и уведомляем клиента
-      const newly = db.checkAchievements(me.uuid);
-      if (newly && newly.length) newly.forEach((a) => socket.emit('achievement:unlocked', { name: a.name, icon: a.icon }));
+      awardCheck(socket, me.uuid); // выдать и уведомить о новых достижениях
     } catch (e) {}
   });
 
@@ -626,8 +640,13 @@ io.on('connection', (socket) => {
     if (!me || !me.lastPartnerUuid) return;
     const r = parseInt(payload && payload.rating, 10);
     if (!(r >= 1 && r <= 5)) return;
-    try { db.addRating(me.uuid, me.lastPartnerUuid, r); } catch (e) {}
+    const rated = me.lastPartnerUuid;
+    try { db.addRating(me.uuid, rated, r); } catch (e) {}
     me.lastPartnerUuid = null; // одна оценка за один разговор
+    // Достижения оценённого (за оценки/качество) — если он сейчас онлайн
+    for (const [sid, u] of users) {
+      if (u.uuid === rated) { const rs = io.sockets.sockets.get(sid); if (rs) awardCheck(rs, rated); break; }
+    }
   });
 
   // Запрос своей статистики (короткая версия, для бейджа уровня)
@@ -830,6 +849,8 @@ function joinGroup(socket, group) {
   group.members.add(socket.id);
   me.mode = 'group';
   me.groupCode = group.code;
+  // Достижения «командный игрок/социалист»: считаем участия в группах
+  try { db.incGroup(me.uuid); awardCheck(socket, me.uuid); } catch (e) {}
 
   // Список уже присутствующих участников (без себя) — с ними новичок соединится
   const others = [...group.members].filter((id) => id !== socket.id).map((id) => {

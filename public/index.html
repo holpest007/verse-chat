@@ -525,51 +525,60 @@
       <section class="panel" id="panel-stats">
         <h2 class="stats-h"><i class="fa-solid fa-trophy"></i> Статистика</h2>
 
-        <!-- Карточка уровня и прогресса -->
-        <div class="card level-card">
-          <div class="level-top">
-            <span class="level-badge lg" id="st-level">Ур. 1</span>
-            <div class="level-info">
-              <b id="st-xp">0 XP</b>
-              <small id="st-tonext">До следующего уровня: 50 XP</small>
+        <!-- Под-вкладки: Обзор / Достижения -->
+        <div class="stab-bar">
+          <button class="stab-btn active" data-stab="overview">Обзор</button>
+          <button class="stab-btn" data-stab="ach">Достижения</button>
+        </div>
+
+        <!-- Под-вкладка «Обзор» -->
+        <div class="stab-view" id="stats-overview">
+          <!-- Карточка уровня и прогресса -->
+          <div class="card level-card">
+            <div class="level-top">
+              <span class="level-badge lg" id="st-level">Ур. 1</span>
+              <div class="level-info">
+                <b id="st-xp">0 XP</b>
+                <small id="st-tonext">До следующего уровня: 50 XP</small>
+              </div>
+            </div>
+            <div class="level-bar"><span id="st-fill"></span></div>
+          </div>
+
+          <!-- Плитки: время и разговоры -->
+          <div class="stat-grid">
+            <div class="stat-cell"><b id="st-calls">0</b><small>разговоров</small></div>
+            <div class="stat-cell"><b id="st-time">0 мин</b><small>в чате</small></div>
+            <div class="stat-cell"><b id="st-xp2">0</b><small>очков XP</small></div>
+          </div>
+
+          <!-- Рейтинг от собеседников -->
+          <div class="card">
+            <div class="card-label"><i class="fa-solid fa-star"></i> Ваш рейтинг</div>
+            <div class="rating-row">
+              <span class="rating-stars" id="st-rating-stars">☆☆☆☆☆</span>
+              <b class="rating-num" id="st-rating-num">—</b>
+              <small class="rating-count" id="st-rating-count">пока нет оценок</small>
             </div>
           </div>
-          <div class="level-bar"><span id="st-fill"></span></div>
-        </div>
 
-        <!-- Плитки: время и разговоры -->
-        <div class="stat-grid">
-          <div class="stat-cell"><b id="st-calls">0</b><small>разговоров</small></div>
-          <div class="stat-cell"><b id="st-time">0 мин</b><small>в чате</small></div>
-          <div class="stat-cell"><b id="st-xp2">0</b><small>очков XP</small></div>
-        </div>
+          <!-- Дневные челленджи -->
+          <div class="card">
+            <div class="card-label"><i class="fa-solid fa-bolt"></i> Челленджи дня</div>
+            <div id="st-challenges"></div>
+          </div>
 
-        <!-- Рейтинг от собеседников -->
-        <div class="card">
-          <div class="card-label"><i class="fa-solid fa-star"></i> Ваш рейтинг</div>
-          <div class="rating-row">
-            <span class="rating-stars" id="st-rating-stars">☆☆☆☆☆</span>
-            <b class="rating-num" id="st-rating-num">—</b>
-            <small class="rating-count" id="st-rating-count">пока нет оценок</small>
+          <!-- Таблица лидеров -->
+          <div class="card">
+            <div class="card-label"><i class="fa-solid fa-ranking-star"></i> Топ-10 по XP</div>
+            <div class="leaderboard" id="st-leaderboard"></div>
           </div>
         </div>
 
-        <!-- Дневные челленджи -->
-        <div class="card">
-          <div class="card-label"><i class="fa-solid fa-bolt"></i> Челленджи дня</div>
-          <div id="st-challenges"></div>
-        </div>
-
-        <!-- Достижения -->
-        <div class="card">
-          <div class="card-label"><i class="fa-solid fa-medal"></i> Достижения</div>
-          <div class="ach-grid" id="st-achievements"></div>
-        </div>
-
-        <!-- Таблица лидеров -->
-        <div class="card">
-          <div class="card-label"><i class="fa-solid fa-ranking-star"></i> Топ-10 по XP</div>
-          <div class="leaderboard" id="st-leaderboard"></div>
+        <!-- Под-вкладка «Достижения» -->
+        <div class="stab-view hidden" id="stats-ach">
+          <div class="ach-summary" id="st-ach-summary"></div>
+          <div id="st-achievements"></div>
         </div>
       </section>
     </main>
@@ -774,6 +783,8 @@
             <span class="s-field-label">Введите никнейм</span>
             <input type="text" id="pf-nick" class="s-input" placeholder="Ваш ник" maxlength="20" />
           </label>
+          <!-- Полученные достижения (эмодзи рядом с ником) -->
+          <div class="pf-badges" id="pf-badges"></div>
           <label class="s-field">
             <span class="s-field-label">Ваш пол</span>
             <select id="pf-gender" class="s-input">

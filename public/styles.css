@@ -1559,12 +1559,31 @@ textarea.s-input { resize: vertical; font-family: inherit; }
 
 /* Достижения */
 .ach-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.ach { background: var(--card-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px 8px; text-align: center; opacity: 0.55; }
-.ach.unlocked { opacity: 1; border-color: var(--gold); }
-.ach-ic { font-size: 26px; color: var(--muted); margin-bottom: 6px; }
-.ach.unlocked .ach-ic { color: var(--gold); }
+.ach { background: var(--card-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px 8px; text-align: center; opacity: 0.5; }
+.ach.unlocked { opacity: 1; border-color: var(--gold); background: linear-gradient(160deg, rgba(245,179,1,.12), var(--card-2)); }
+.ach-ic { font-size: 30px; line-height: 1; margin-bottom: 6px; filter: grayscale(1); }
+.ach.unlocked .ach-ic { filter: none; }
 .ach-name { font-size: 12px; font-weight: 600; line-height: 1.2; }
 .ach-prog { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.ach.unlocked .ach-prog { color: var(--gold); font-weight: 600; }
+/* прогресс-бар незавершённого достижения */
+.ach-bar { height: 5px; background: var(--card); border-radius: 4px; overflow: hidden; margin: 6px 2px 2px; }
+.ach-bar span { display: block; height: 100%; background: var(--indigo, #5b6cff); border-radius: 4px; }
+/* категории и сводка */
+.ach-summary { font-weight: 700; margin-bottom: 12px; }
+.ach-cat { margin-bottom: 18px; }
+.ach-cat-h { font-size: 14px; font-weight: 700; color: var(--muted); margin: 0 2px 8px; text-transform: uppercase; letter-spacing: .5px; }
+
+/* Под-вкладки статистики */
+.stab-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+.stab-btn { flex: 1; padding: 10px; border: 1px solid var(--border); background: var(--card-2); color: var(--muted); border-radius: 12px; font: inherit; font-weight: 600; cursor: pointer; }
+.stab-btn.active { background: var(--indigo, #5b6cff); color: #fff; border-color: transparent; }
+
+/* Бейджи достижений в профиле */
+.pf-badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
+.pf-badge { font-size: 20px; line-height: 1; background: var(--card-2); border: 1px solid var(--gold); border-radius: 9px; padding: 5px 7px; }
+.pf-badge.more { font-size: 13px; font-weight: 700; color: var(--muted); border-color: var(--border); display: flex; align-items: center; }
+.pf-badges-empty { color: var(--muted); font-size: 13px; }
 
 /* Таблица лидеров */
 .leaderboard { display: flex; flex-direction: column; gap: 6px; }

@@ -2118,15 +2118,28 @@ function renderStatsTab(data) {
       '<div class="ch-prog">' + c.progress + ' / ' + c.target + '</div></div>';
   }).join('') || '<div class="empty-note">Нет активных челленджей</div>';
 
-  // Достижения
+  // Достижения — по категориям, с прогрессом и тултипами
   const ag = document.getElementById('st-achievements');
-  if (ag) ag.innerHTML = (data.achievements || []).map((a) => {
-    const done = a.unlocked;
-    return '<div class="ach' + (done ? ' unlocked' : '') + '" title="' + escapeHtml(a.description) + '">' +
-      '<div class="ach-ic"><i class="fa-solid ' + escapeHtml(a.icon) + '"></i></div>' +
-      '<div class="ach-name">' + escapeHtml(a.name) + '</div>' +
-      '<div class="ach-prog">' + (done ? 'Получено' : (a.progress + ' / ' + a.target)) + '</div></div>';
-  }).join('');
+  if (ag) {
+    const list = data.achievements || [];
+    const cats = [], byCat = {};
+    list.forEach((a) => { const c = a.category || 'Прочее'; if (!byCat[c]) { byCat[c] = []; cats.push(c); } byCat[c].push(a); });
+    const sum = document.getElementById('st-ach-summary');
+    if (sum) sum.textContent = 'Получено ' + list.filter((a) => a.unlocked).length + ' из ' + list.length;
+    ag.innerHTML = cats.map((cat) => {
+      const items = byCat[cat].map((a) => {
+        const pct = (a.numeric && a.target) ? Math.min(100, Math.round((a.progress / a.target) * 100)) : (a.unlocked ? 100 : 0);
+        const status = a.unlocked ? 'Получено' : (a.numeric ? a.progress + ' / ' + a.target : 'Не выполнено');
+        const bar = (a.numeric && !a.unlocked) ? '<div class="ach-bar"><span style="width:' + pct + '%"></span></div>' : '';
+        return '<div class="ach' + (a.unlocked ? ' unlocked' : '') + '" title="' + escapeHtml(a.description) + '">' +
+          '<div class="ach-ic">' + escapeHtml(a.icon) + '</div>' +
+          '<div class="ach-name">' + escapeHtml(a.name) + '</div>' + bar +
+          '<div class="ach-prog">' + status + '</div></div>';
+      }).join('');
+      return '<div class="ach-cat"><div class="ach-cat-h">' + escapeHtml(cat) + '</div><div class="ach-grid">' + items + '</div></div>';
+    }).join('');
+  }
+  renderProfileBadges(data.achievements); // синхронизируем бейджи в профиле
 
   // Таблица лидеров
   const lb = document.getElementById('st-leaderboard');
@@ -2157,10 +2170,36 @@ socket.on('stat:me', (s) => {
   const panel = document.getElementById('panel-stats');
   if (panel && panel.classList.contains('active')) loadStatsTab();
 });
-// Уведомление о новом достижении
+// Уведомление о новом достижении (тост с эмодзи в углу экрана)
 socket.on('achievement:unlocked', (a) => {
-  if (a && a.name) toast('🏆 Достижение: ' + a.name);
+  if (a && a.name) toast((a.icon || '🏆') + ' Достижение: ' + a.name);
 });
+
+// Переключение под-вкладок статистики: Обзор / Достижения
+document.querySelectorAll('.stab-btn').forEach((b) =>
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.stab-btn').forEach((x) => x.classList.toggle('active', x === b));
+    const t = b.dataset.stab;
+    document.getElementById('stats-overview').classList.toggle('hidden', t !== 'overview');
+    document.getElementById('stats-ach').classList.toggle('hidden', t !== 'ach');
+  })
+);
+
+// Бейджи достижений в профиле (эмодзи рядом с ником)
+function renderProfileBadges(achievements) {
+  const box = document.getElementById('pf-badges');
+  if (!box) return;
+  const unlocked = (achievements || []).filter((a) => a.unlocked);
+  if (!unlocked.length) {
+    box.innerHTML = '<span class="pf-badges-empty">Пока нет достижений — общайтесь, чтобы их получить</span>';
+    return;
+  }
+  box.innerHTML = unlocked.slice(0, 12).map((a) =>
+    '<span class="pf-badge" title="' + escapeHtml(a.name) + '">' + escapeHtml(a.icon) + '</span>').join('') +
+    (unlocked.length > 12 ? '<span class="pf-badge more">+' + (unlocked.length - 12) + '</span>' : '');
+}
+// Разовая подгрузка бейджей при старте (не дожидаясь открытия вкладки статистики)
+socket.emit('stats:get', (d) => { if (d) renderProfileBadges(d.achievements); });
 
 // Отправить длительность завершённого разговора на сервер (для очков/уровня)
 function flushCallStat(mode) {
