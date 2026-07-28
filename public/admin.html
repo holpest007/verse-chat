@@ -80,6 +80,8 @@
     #users-table .uid{font-size:10px;white-space:normal;word-break:break-all;max-width:100px;display:inline-block;line-height:1.2;vertical-align:middle}
     #users-table .badge{font-size:10px;padding:2px 6px}
     #users-table .btn-sm{padding:3px 7px;font-size:10px}
+    #users-table .nowrap{white-space:nowrap}
+    #users-table .cell-ellip{display:inline-block;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
     .empty{padding:30px;text-align:center;color:var(--muted)}
 
     /* --- Гистограмма пиковых часов --- */
@@ -290,6 +292,12 @@
       return r.json();
     }
     const fmtDate = (ms) => ms ? new Date(ms).toLocaleString('ru-RU') : '—';
+    // Короткая дата для компактной таблицы: «28.07.26 23:00»
+    const fmtDateShort = (ms) => {
+      if (!ms) return '—';
+      const d = new Date(ms), p = (n) => String(n).padStart(2, '0');
+      return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${String(d.getFullYear()).slice(2)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    };
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     // Полный UUID пользователя (без обрезания) + копирование по клику
     const uid = (id) => id
@@ -530,16 +538,16 @@
       const rows = users.map((u) => `
         <tr>
           <td>${uid(u.id)}</td>
-          <td>${esc(u.nick) || '<span class="muted">—</span>'}</td>
+          <td>${u.nick ? `<span class="cell-ellip" title="${esc(u.nick)}">${esc(u.nick)}</span>` : '<span class="muted">—</span>'}</td>
           <td>${u.gender === 'female' ? 'Ж' : 'М'}</td>
           <td>${esc(u.age)}</td>
-          <td>${esc(u.city)}</td>
+          <td><span class="cell-ellip" title="${esc(u.city)}">${esc(u.city)}</span></td>
           <td><span class="badge b-plus">Ур. ${esc(u.level || 1)}</span></td>
           <td>${esc(u.points || 0)}</td>
           <td><span class="badge b-${u.subscription}">${planName(u.subscription)}</span></td>
           <td><span class="badge b-${u.role}">${roleName(u.role)}</span></td>
           <td>${u.isBanned ? '<span class="badge b-ban">Забанен</span>' : '<span class="badge b-ok">Активен</span>'}</td>
-          <td>${fmtDate(u.createdAt)}</td>
+          <td class="nowrap">${fmtDateShort(u.createdAt)}</td>
           <td>${fmtRating(u)}</td>
           <td>${u.convCount || 0}</td>
           <td>${fmtDuration(u.totalDuration)}</td>
