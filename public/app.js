@@ -1538,6 +1538,29 @@ document.querySelectorAll('.scheme').forEach((s) => {
   });
 });
 
+// ==========================================================================
+//  ВОССТАНОВЛЕНИЕ ЗВУКА ПРИ ВОЗВРАТЕ НА ВКЛАДКУ
+//  Браузер приостанавливает AudioContext и может ставить медиа на паузу, когда
+//  вкладка/браузер свёрнуты. При возврате возобновляем контексты (в т.ч. fxCtx,
+//  который обрабатывает ИСХОДЯЩИЙ звук) и перезапускаем все аудио/видео-потоки.
+//  Работает для голоса 1-на-1, видеочата и групповых режимов.
+// ==========================================================================
+function resumeMediaAfterVisible() {
+  [window._audioCtx, typeof fxCtx !== 'undefined' ? fxCtx : null].forEach((ctx) => {
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+  });
+  // Перезапускаем воспроизведение всех медиа-элементов, у которых есть поток,
+  // но которые встали на паузу из-за сворачивания.
+  document.querySelectorAll('audio, video').forEach((el) => {
+    if (el.srcObject && el.paused) el.play().catch(() => {});
+  });
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') resumeMediaAfterVisible();
+});
+// Резервно: некоторые браузеры при разворачивании окна дают только 'focus'
+window.addEventListener('focus', resumeMediaAfterVisible);
+
 // ---------- ГОЛОСОВЫЕ ЭФФЕКТЫ ----------
 let fxCtx = null;
 // Построить обработанный аудиопоток под выбранный эффект
