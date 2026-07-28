@@ -2105,18 +2105,27 @@ function renderStatsTab(data) {
   const pct = next > cur ? Math.min(100, Math.round((((s.xp || 0) - cur) / (next - cur)) * 100)) : 100;
   const fill = document.getElementById('st-fill'); if (fill) fill.style.width = pct + '%';
 
-  // Челленджи
+  // Челленджи + сводка «выполнено X из Y сегодня»
   const ch = document.getElementById('st-challenges');
-  if (ch) ch.innerHTML = (data.challenges || []).map((c) => {
-    const pct2 = Math.min(100, Math.round((c.progress / c.target) * 100));
-    const btn = c.claimed
-      ? '<span class="ch-claimed"><i class="fa-solid fa-check"></i> Получено</span>'
-      : (c.done ? '<button class="btn btn-green btn-sm ch-claim" data-kind="' + c.kind + '">+' + c.reward + ' XP</button>'
-                : '<span class="ch-reward">+' + c.reward + ' XP</span>');
-    return '<div class="challenge"><div class="ch-head"><span>' + escapeHtml(c.name) + '</span>' + btn + '</div>' +
-      '<div class="ch-bar"><span style="width:' + pct2 + '%"></span></div>' +
-      '<div class="ch-prog">' + c.progress + ' / ' + c.target + '</div></div>';
-  }).join('') || '<div class="empty-note">Нет активных челленджей</div>';
+  if (ch) {
+    const chs = data.challenges || [];
+    const doneN = chs.filter((c) => c.done || c.claimed).length;
+    const head = chs.length
+      ? '<div class="ch-summary"><span>Выполнено <b>' + doneN + ' из ' + chs.length + '</b> сегодня</span>' +
+        '<div class="mini-bar"><span style="width:' + Math.round((doneN / chs.length) * 100) + '%"></span></div></div>'
+      : '';
+    const items = chs.map((c) => {
+      const pct2 = Math.min(100, Math.round((c.progress / c.target) * 100));
+      const btn = c.claimed
+        ? '<span class="ch-claimed"><i class="fa-solid fa-check"></i> Получено</span>'
+        : (c.done ? '<button class="btn btn-green btn-sm ch-claim" data-kind="' + c.kind + '">+' + c.reward + ' XP</button>'
+                  : '<span class="ch-reward">+' + c.reward + ' XP</span>');
+      return '<div class="challenge"><div class="ch-head"><span>' + escapeHtml(c.name) + '</span>' + btn + '</div>' +
+        '<div class="ch-bar"><span style="width:' + pct2 + '%"></span></div>' +
+        '<div class="ch-prog">' + c.progress + ' / ' + c.target + '</div></div>';
+    }).join('') || '<div class="empty-note">Нет активных челленджей</div>';
+    ch.innerHTML = head + items;
+  }
 
   // Достижения — по категориям, с прогрессом и тултипами
   const ag = document.getElementById('st-achievements');
@@ -2125,7 +2134,13 @@ function renderStatsTab(data) {
     const cats = [], byCat = {};
     list.forEach((a) => { const c = a.category || 'Прочее'; if (!byCat[c]) { byCat[c] = []; cats.push(c); } byCat[c].push(a); });
     const sum = document.getElementById('st-ach-summary');
-    if (sum) sum.textContent = 'Получено ' + list.filter((a) => a.unlocked).length + ' из ' + list.length;
+    if (sum) {
+      const got = list.filter((a) => a.unlocked).length, total = list.length, left = total - got;
+      const p = total ? Math.round((got / total) * 100) : 0;
+      sum.innerHTML = '<div class="ach-sum-top"><b>Получено ' + got + ' из ' + total + '</b>' +
+        '<span>осталось ' + left + ' · ' + p + '%</span></div>' +
+        '<div class="mini-bar"><span style="width:' + p + '%"></span></div>';
+    }
     ag.innerHTML = cats.map((cat) => {
       const items = byCat[cat].map((a) => {
         const pct = (a.numeric && a.target) ? Math.min(100, Math.round((a.progress / a.target) * 100)) : (a.unlocked ? 100 : 0);

@@ -1570,7 +1570,15 @@ textarea.s-input { resize: vertical; font-family: inherit; }
 .ach-bar { height: 5px; background: var(--card); border-radius: 4px; overflow: hidden; margin: 6px 2px 2px; }
 .ach-bar span { display: block; height: 100%; background: var(--indigo, #5b6cff); border-radius: 4px; }
 /* категории и сводка */
-.ach-summary { font-weight: 700; margin-bottom: 12px; }
+.ach-summary { margin-bottom: 16px; }
+.ach-sum-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; font-size: 15px; }
+.ach-sum-top span { color: var(--muted); font-size: 13px; }
+/* Тонкая шкала прогресса (сводки достижений и челленджей) */
+.mini-bar { height: 8px; background: var(--card-2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.mini-bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--indigo, #5b6cff), #7a4dff); border-radius: 6px; transition: width .3s; }
+.ch-summary { margin-bottom: 12px; font-size: 14px; }
+.ch-summary > span { display: block; margin-bottom: 8px; }
+.ch-summary b { color: var(--text); }
 .ach-cat { margin-bottom: 18px; }
 .ach-cat-h { font-size: 14px; font-weight: 700; color: var(--muted); margin: 0 2px 8px; text-transform: uppercase; letter-spacing: .5px; }
 
