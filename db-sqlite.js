@@ -496,6 +496,7 @@ function claimChallenge(id, kind) {
 // Полная статистика для вкладки «Статистика»
 function getFullStats(id) {
   const s = getUserStats(id);
+  const r = getAvgRating(id);
   const cur = 25 * (s.level - 1) * s.level;        // порог текущего уровня
   const next = 25 * s.level * (s.level + 1);       // порог следующего уровня
   return {
@@ -507,6 +508,8 @@ function getFullStats(id) {
       curLevelXp: cur,
       nextLevelXp: next,
       toNext: Math.max(0, next - s.xp),
+      avgRating: r.avg,
+      ratingCount: r.count,
     },
     achievements: getAchievements(id),
     challenges: getChallenges(id),

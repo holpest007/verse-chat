@@ -416,6 +416,7 @@ function showVoiceEnded(msg) {
   stopTimer('voiceSearch');
   $('#voice-ended-msg').textContent = msg;
   showScreen('voice', 'ended');
+  openRateModal();
 }
 
 socket.on('voice:none', () => toast('Собеседников пока нет'));
@@ -429,6 +430,7 @@ socket.on('voice:matched', (data) => {
 async function proceedVoiceMatch({ peerId, initiator, partner }) {
   voicePeerId = peerId;
   currentMode = 'voice';
+  ratablePartner = true; // после разговора можно оценить собеседника
   // Инициатор шлёт первый offer → он «невежливый»; собеседник «вежливый»
   voiceNeg = { polite: !initiator, makingOffer: false, ignoreOffer: false };
   voicePC = createVoicePC(peerId);
@@ -560,6 +562,7 @@ function showTextEnded(msg) {
   stopTimer('textSearch');
   $('#text-ended-msg').textContent = msg;
   showScreen('text', 'ended');
+  openRateModal();
 }
 
 socket.on('text:none', () => toast('Собеседников пока нет'));
@@ -572,6 +575,7 @@ socket.on('text:matched', (data) => {
 function proceedTextMatch({ peerId, partner }) {
   textPeerId = peerId;
   currentMode = 'text';
+  ratablePartner = true; // после разговора можно оценить собеседника
   stopTimer('textSearch');
   // очищаем историю, показываем плашку «Отправьте первое сообщение»
   $('#text-messages').innerHTML =
@@ -955,6 +959,37 @@ document.querySelectorAll('[data-restart]').forEach((b) =>
 document.querySelectorAll('[data-change]').forEach((b) =>
   b.addEventListener('click', () => showScreen(b.dataset.change, 'setup'))
 );
+
+// ==========================================================================
+//  МОДАЛКА ОЦЕНКИ СОБЕСЕДНИКА (1–5 звёзд) — после завершения разговора
+// ==========================================================================
+let ratablePartner = false; // был ли реальный собеседник (можно оценить)
+function paintRateStars(n) {
+  document.querySelectorAll('#rate-stars .rate-star').forEach((s) =>
+    s.classList.toggle('on', Number(s.dataset.v) <= n)
+  );
+}
+function openRateModal() {
+  if (!ratablePartner) return;       // нечего оценивать (не было соединения)
+  ratablePartner = false;            // одно окно на один разговор
+  paintRateStars(0);
+  $('#rate-modal').classList.remove('hidden');
+}
+function closeRateModal() { $('#rate-modal').classList.add('hidden'); }
+document.querySelectorAll('#rate-stars .rate-star').forEach((s) => {
+  s.addEventListener('mouseenter', () => paintRateStars(Number(s.dataset.v)));
+  s.addEventListener('click', () => {
+    const v = Number(s.dataset.v);
+    paintRateStars(v);
+    socket.emit('rate', { rating: v });   // без подтверждений — молча
+    toast('Спасибо за оценку!');
+    setTimeout(closeRateModal, 220);
+  });
+});
+const rateStarsBox = document.getElementById('rate-stars');
+if (rateStarsBox) rateStarsBox.addEventListener('mouseleave', () => paintRateStars(0));
+$('#rate-skip').addEventListener('click', closeRateModal);
+$('#rate-modal').addEventListener('click', (e) => { if (e.target.id === 'rate-modal') closeRateModal(); });
 
 // ==========================================================================
 //  МОДАЛКА «ПРАВИЛА»
@@ -2042,6 +2077,12 @@ function renderStatsTab(data) {
   setTxt('st-xp2', s.xp || 0);
   setTxt('st-calls', s.totalCalls || 0);
   setTxt('st-time', fmtMinutes(s.totalMinutes || 0));
+  // Рейтинг от собеседников: звёзды (округляем) + среднее + число оценок
+  const avg = s.avgRating || 0, rc = s.ratingCount || 0;
+  const filled = Math.round(avg);
+  setTxt('st-rating-stars', '★'.repeat(filled) + '☆'.repeat(5 - filled));
+  setTxt('st-rating-num', rc ? avg.toFixed(1) : '—');
+  setTxt('st-rating-count', rc ? ('оценок: ' + rc) : 'пока нет оценок');
   setTxt('st-tonext', (s.level >= 99) ? 'Максимальный уровень' : ('До ' + ((s.level || 1) + 1) + ' уровня: ' + (s.toNext || 0) + ' XP'));
   const cur = s.curLevelXp || 0, next = s.nextLevelXp || 50;
   const pct = next > cur ? Math.min(100, Math.round((((s.xp || 0) - cur) / (next - cur)) * 100)) : 100;
@@ -2439,6 +2480,7 @@ socket.on('video:matched', () => maybeNotify('Собеседник найден!
 async function proceedVideoMatch({ peerId, initiator, partner }) {
   videoPeerId = peerId;
   currentMode = 'video';
+  ratablePartner = true; // после разговора можно оценить собеседника
   videoNeg = { polite: !initiator, makingOffer: false, ignoreOffer: false };
   try { if (!videoLocalStream) videoLocalStream = await getVideoMedia(videoFacing); }
   catch (e) { toast('Нет доступа к камере'); }
@@ -2480,6 +2522,7 @@ function showVideoEnded(msg) {
   stopTimer('videoCall'); stopTimer('videoSearch');
   $('#video-ended-msg').textContent = msg;
   showScreen('video', 'ended');
+  openRateModal();
 }
 
 // ---------- ГРУППОВОЕ ВИДЕО ----------

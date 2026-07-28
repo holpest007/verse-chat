@@ -200,7 +200,7 @@ function getFullStats(id) {
   const s = getUserStats(id);
   const cur = 25 * (s.level - 1) * s.level, next = 25 * s.level * (s.level + 1);
   return {
-    stats: { totalMinutes: Math.floor(s.totalDuration / 60), totalCalls: s.convCount, xp: s.xp, level: s.level, curLevelXp: cur, nextLevelXp: next, toNext: Math.max(0, next - s.xp) },
+    stats: { totalMinutes: Math.floor(s.totalDuration / 60), totalCalls: s.convCount, xp: s.xp, level: s.level, curLevelXp: cur, nextLevelXp: next, toNext: Math.max(0, next - s.xp), avgRating: getAvgRating(id).avg, ratingCount: getAvgRating(id).count },
     achievements: getAchievements(id), challenges: getChallenges(id), leaderboard: getLeaderboard(),
   };
 }

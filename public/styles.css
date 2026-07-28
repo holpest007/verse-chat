@@ -1406,6 +1406,23 @@ textarea.s-input { resize: vertical; font-family: inherit; }
 .stat-cell b { display: block; font-size: 18px; font-weight: 800; }
 .stat-cell small { color: var(--muted); font-size: 11px; }
 
+/* Рейтинг в статистике */
+.rating-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rating-stars { font-size: 24px; color: #f5b301; letter-spacing: 2px; line-height: 1; }
+.rating-num { font-size: 20px; font-weight: 800; }
+.rating-count { color: var(--muted); font-size: 13px; }
+
+/* Модалка оценки собеседника */
+#rate-modal .modal-card { max-width: 360px; }
+.rate-stars { display: flex; justify-content: center; gap: 6px; margin: 8px 0 20px; }
+.rate-star {
+  background: none; border: none; cursor: pointer;
+  font-size: 40px; line-height: 1; padding: 2px;
+  color: var(--border); transition: color 0.12s, transform 0.12s;
+}
+.rate-star:hover { transform: scale(1.12); }
+.rate-star.on { color: #f5b301; }
+
 /* ---------- Мой ID ---------- */
 .id-field { display: flex; align-items: center; gap: 8px; }
 .id-value {

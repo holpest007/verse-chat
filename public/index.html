@@ -544,6 +544,16 @@
           <div class="stat-cell"><b id="st-xp2">0</b><small>очков XP</small></div>
         </div>
 
+        <!-- Рейтинг от собеседников -->
+        <div class="card">
+          <div class="card-label"><i class="fa-solid fa-star"></i> Ваш рейтинг</div>
+          <div class="rating-row">
+            <span class="rating-stars" id="st-rating-stars">☆☆☆☆☆</span>
+            <b class="rating-num" id="st-rating-num">—</b>
+            <small class="rating-count" id="st-rating-count">пока нет оценок</small>
+          </div>
+        </div>
+
         <!-- Дневные челленджи -->
         <div class="card">
           <div class="card-label"><i class="fa-solid fa-bolt"></i> Челленджи дня</div>
@@ -619,6 +629,22 @@
         <button class="modal-x" data-close-modal="gift-modal"><i class="fa-solid fa-xmark"></i></button>
         <h3 class="modal-h center">Отправить подарок</h3>
         <div class="gift-grid" id="gift-grid"></div>
+      </div>
+    </div>
+
+    <!-- ============ МОДАЛКА ОЦЕНКИ СОБЕСЕДНИКА ============ -->
+    <div class="modal-backdrop hidden" id="rate-modal">
+      <div class="modal-card center">
+        <h3 class="modal-h center">Оцените собеседника</h3>
+        <p class="modal-sub center">Это поможет находить приятных собеседников</p>
+        <div class="rate-stars" id="rate-stars">
+          <button type="button" class="rate-star" data-v="1" aria-label="1">★</button>
+          <button type="button" class="rate-star" data-v="2" aria-label="2">★</button>
+          <button type="button" class="rate-star" data-v="3" aria-label="3">★</button>
+          <button type="button" class="rate-star" data-v="4" aria-label="4">★</button>
+          <button type="button" class="rate-star" data-v="5" aria-label="5">★</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="rate-skip">Пропустить</button>
       </div>
     </div>
 

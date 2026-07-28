@@ -210,6 +210,10 @@ function compatible(a, b, aId, bId) {
   if (aPrem && !zodiacMatches(a.filterZodiac, b.zodiac)) return false;
   if (bPrem && !zodiacMatches(b.filterZodiac, a.zodiac)) return false;
   if ((aPrem || bPrem) && !interestsMatch(a, b)) return false;
+  // Подбор по близкому рейтингу: если у ОБОИХ есть оценки — разница ≤ 0.5.
+  // Если у кого-то оценок нет — фильтр не применяем (не мешаем новичкам).
+  if (a.ratingCount > 0 && b.ratingCount > 0 &&
+      Math.abs((a.avgRating || 0) - (b.avgRating || 0)) > 0.5) return false;
   return true;
 }
 
@@ -313,6 +317,10 @@ function endOneToOne(socket) {
   if (partnerId) {
     const partner = users.get(partnerId);
     if (partner) partner.partnerId = null;
+    // Запоминаем uuid собеседника у обеих сторон — чтобы можно было оценить
+    // друг друга после разговора (клиент не знает чужой uuid — резолвим тут).
+    if (partner && partner.uuid) me.lastPartnerUuid = partner.uuid;
+    if (partner) partner.lastPartnerUuid = me.uuid;
     io.to(partnerId).emit('peer:left'); // собеседник вернётся в режим поиска
   }
 }
@@ -358,6 +366,9 @@ io.on('connection', (socket) => {
     profession: record.profession || '',
     height: record.height || 0,
     level: record.level || 1,        // уровень (система очков)
+    // Средний рейтинг (для подбора по близкому рейтингу ±0.5)
+    avgRating: (() => { try { return db.getAvgRating(uuid).avg; } catch (e) { return 0; } })(),
+    ratingCount: (() => { try { return db.getAvgRating(uuid).count; } catch (e) { return 0; } })(),
     filterGenders: ['any'],
     filterAges: ['18-24'],
     filterInterests: [],             // премиум-фильтр по интересам
@@ -365,6 +376,7 @@ io.on('connection', (socket) => {
     blocked: new Set(),
     mode: null,
     partnerId: null,
+    lastPartnerUuid: null,           // кого можно оценить после разговора
     groupCode: null,
   });
 
@@ -604,6 +616,17 @@ io.on('connection', (socket) => {
       const newly = db.checkAchievements(me.uuid);
       if (newly && newly.length) newly.forEach((a) => socket.emit('achievement:unlocked', { name: a.name, icon: a.icon }));
     } catch (e) {}
+  });
+
+  // Оценка собеседника (1–5 звёзд) после разговора. Клиент не знает чужой uuid —
+  // ставим оценку последнему партнёру, запомненному сервером в endOneToOne.
+  socket.on('rate', (payload) => {
+    const me = users.get(socket.id);
+    if (!me || !me.lastPartnerUuid) return;
+    const r = parseInt(payload && payload.rating, 10);
+    if (!(r >= 1 && r <= 5)) return;
+    try { db.addRating(me.uuid, me.lastPartnerUuid, r); } catch (e) {}
+    me.lastPartnerUuid = null; // одна оценка за один разговор
   });
 
   // Запрос своей статистики (короткая версия, для бейджа уровня)
