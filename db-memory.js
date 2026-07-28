@@ -206,6 +206,20 @@ function getFullStats(id) {
 }
 
 // --- Реакции ---
+const ratings = []; // { fromId, toId, rating, createdAt }
+function getAvgRating(id) {
+  const rs = ratings.filter((r) => r.toId === id);
+  if (!rs.length) return { avg: 0, count: 0 };
+  const avg = rs.reduce((s, r) => s + r.rating, 0) / rs.length;
+  return { avg: Math.round(avg * 100) / 100, count: rs.length };
+}
+function addRating(fromId, toId, rating) {
+  const r = Math.max(1, Math.min(5, parseInt(rating, 10) || 0));
+  if (!toId || !r) return null;
+  ratings.push({ fromId: fromId || '', toId, rating: r, createdAt: Date.now() });
+  return getAvgRating(toId);
+}
+
 function addReaction(userId, msgId, emoji) {
   reactions.push({ userId, msgId: String(msgId).slice(0, 64), emoji: String(emoji).slice(0, 16), createdAt: Date.now() });
 }
@@ -238,7 +252,10 @@ module.exports = {
   banUser, setRole, touch, addReport, addAdminLog, addActivity, addMessage, getMessages,
   pruneMessages, recordConversation, getUserStats, addXp, checkAchievements, getAchievements,
   getLeaderboard, getChallenges, claimChallenge, getFullStats, addReaction, getReactions, getAnalytics, getStats,
-  allUsers: () => [...users.values()].sort((a, b) => b.createdAt - a.createdAt),
+  addRating, getAvgRating,
+  allUsers: () => [...users.values()]
+    .map((u) => { const r = getAvgRating(u.id); return { ...u, avgRating: r.avg || null, ratingCount: r.count }; })
+    .sort((a, b) => b.createdAt - a.createdAt),
   allReports: () => reports.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 200),
   allAdminLogs: () => adminLogs.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 200),
   allActivity: () => activityLogs.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 200),

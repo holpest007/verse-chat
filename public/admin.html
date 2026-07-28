@@ -73,6 +73,13 @@
     /* Полный UUID: моноширинный, выделяемый, копируется по клику */
     .uid{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;user-select:all;cursor:pointer}
     .uid:hover{text-decoration:underline}
+    /* Компактная таблица пользователей: все 15 колонок помещаются без
+       горизонтального скролла на широких экранах (меньше отступы, перенос UUID). */
+    #users-table{min-width:0}
+    #users-table th,#users-table td{padding:5px 6px;font-size:11px}
+    #users-table .uid{font-size:10px;white-space:normal;word-break:break-all;max-width:100px;display:inline-block;line-height:1.2;vertical-align:middle}
+    #users-table .badge{font-size:10px;padding:2px 6px}
+    #users-table .btn-sm{padding:3px 7px;font-size:10px}
     .empty{padding:30px;text-align:center;color:var(--muted)}
 
     /* --- Гистограмма пиковых часов --- */
@@ -200,6 +207,19 @@
     function copyId(id) {
       if (navigator.clipboard) navigator.clipboard.writeText(id).catch(() => {});
     }
+    // Средний рейтинг пользователя (★ и число оценок)
+    const fmtRating = (u) => u.avgRating
+      ? `★ ${u.avgRating} <span class="muted">(${u.ratingCount || 0})</span>`
+      : '<span class="muted">—</span>';
+    // Время в чате из секунд → «5 мин» / «2 ч 10 мин»
+    const fmtDuration = (sec) => {
+      sec = parseInt(sec, 10) || 0;
+      if (sec < 60) return sec + ' с';
+      const m = Math.floor(sec / 60);
+      if (m < 60) return m + ' мин';
+      const h = Math.floor(m / 60), mm = m % 60;
+      return h + ' ч' + (mm ? ' ' + mm + ' мин' : '');
+    };
 
     // --- Вход ---
     document.getElementById('login-btn').addEventListener('click', login);
@@ -317,13 +337,16 @@
           <td><span class="badge b-${u.role}">${roleName(u.role)}</span></td>
           <td>${u.isBanned ? '<span class="badge b-ban">Забанен</span>' : '<span class="badge b-ok">Активен</span>'}</td>
           <td>${fmtDate(u.createdAt)}</td>
+          <td>${fmtRating(u)}</td>
+          <td>${u.convCount || 0}</td>
+          <td>${fmtDuration(u.totalDuration)}</td>
           <td>${u.isBanned
             ? `<button class="btn btn-ok btn-sm" onclick="ban('${u.id}',false)">Разбанить</button>`
             : `<button class="btn btn-danger btn-sm" onclick="ban('${u.id}',true)">Забанить</button>`}</td>
         </tr>`).join('');
       document.getElementById('users-table').innerHTML =
-        `<thead><tr><th>ID</th><th>Ник</th><th>Пол</th><th>Возраст</th><th>Город</th><th>Уровень</th><th>XP</th><th>Подписка</th><th>Роль</th><th>Статус</th><th>Регистрация</th><th></th></tr></thead>
-         <tbody>${rows || emptyRow(12)}</tbody>`;
+        `<thead><tr><th>ID</th><th>Ник</th><th>Пол</th><th>Возраст</th><th>Город</th><th>Уровень</th><th>XP</th><th>Подписка</th><th>Роль</th><th>Статус</th><th>Регистрация</th><th>Рейтинг</th><th>Разговоры</th><th>Время</th><th></th></tr></thead>
+         <tbody>${rows || emptyRow(15)}</tbody>`;
     }
     async function ban(id, banned) {
       await api('/admin/api/users/' + id + '/ban', { method: 'POST', body: JSON.stringify({ banned }) });

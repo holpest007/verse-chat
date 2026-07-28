@@ -149,6 +149,19 @@ for (const col of [
   try { db.exec('ALTER TABLE users ADD COLUMN ' + col); } catch (e) { /* колонка уже есть */ }
 }
 
+// Оценки собеседников после разговора (1–5 звёзд). Само окно оценки появится в
+// фазе рейтинга; таблица и средний рейтинг заводятся заранее — под колонку админки.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ratings (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_user_id TEXT,
+    to_user_id   TEXT,
+    rating       INTEGER,
+    created_at   INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_ratings_to ON ratings (to_user_id);
+`);
+
 // ----------------------------------------------------------------------------
 //  ПОДГОТОВЛЕННЫЕ ЗАПРОСЫ
 // ----------------------------------------------------------------------------
@@ -156,7 +169,13 @@ const stmts = {
   getUser: db.prepare('SELECT * FROM users WHERE id = ?'),
   getUserByNick: db.prepare('SELECT * FROM users WHERE nick = ? COLLATE NOCASE'),
   insertUser: db.prepare(`INSERT INTO users (id, createdAt, lastSeen) VALUES (?, ?, ?)`),
-  allUsers: db.prepare('SELECT * FROM users ORDER BY createdAt DESC'),
+  allUsers: db.prepare(`
+    SELECT u.*,
+      (SELECT ROUND(AVG(rating), 2) FROM ratings WHERE to_user_id = u.id) AS avgRating,
+      (SELECT COUNT(*) FROM ratings WHERE to_user_id = u.id) AS ratingCount
+    FROM users u ORDER BY u.createdAt DESC`),
+  insertRating: db.prepare('INSERT INTO ratings (from_user_id, to_user_id, rating, created_at) VALUES (?, ?, ?, ?)'),
+  avgRating: db.prepare('SELECT ROUND(AVG(rating), 2) AS avg, COUNT(*) AS n FROM ratings WHERE to_user_id = ?'),
   countUsers: db.prepare('SELECT COUNT(*) AS n FROM users'),
   countSubs: db.prepare(`SELECT subscription, COUNT(*) AS n FROM users GROUP BY subscription`),
   setBan: db.prepare('UPDATE users SET isBanned = ? WHERE id = ?'),
@@ -520,6 +539,18 @@ function getAnalytics() {
   return { unique: { day: uniqueDay, week: uniqueWeek, month: uniqueMonth }, hours, cities };
 }
 
+// Оценка собеседника (1–5). Возвращает обновлённый средний рейтинг.
+function addRating(fromId, toId, rating) {
+  const r = Math.max(1, Math.min(5, parseInt(rating, 10) || 0));
+  if (!toId || !r) return null;
+  stmts.insertRating.run(fromId || '', toId, r, Date.now());
+  return getAvgRating(toId);
+}
+function getAvgRating(id) {
+  const row = stmts.avgRating.get(id);
+  return { avg: row && row.avg ? row.avg : 0, count: row ? row.n : 0 };
+}
+
 // Сводная статистика для дашборда админки
 function getStats() {
   const total = stmts.countUsers.get().n;
@@ -544,6 +575,8 @@ module.exports = {
   addReport,
   addAdminLog,
   addActivity,
+  addRating,
+  getAvgRating,
   addMessage,
   getMessages,
   pruneMessages,
