@@ -30,8 +30,8 @@ app.use(express.json({ limit: '8mb' }));
 // ============================================================================
 const SITE_URL = (process.env.SITE_URL || 'https://verse-team.ru').replace(/\/+$/, '');
 // Контакты сервиса — используются в разметке владельца/контактов и на странице политики
-const CONTACT_EMAIL = process.env.CONTACT_EMAIL || 'support@verseteam.app';
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@verseteam.app';
+const CONTACT_EMAIL = process.env.CONTACT_EMAIL || 'support@verse-team.ru';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@verse-team.ru';
 const OWNER_NAME = process.env.OWNER_NAME || 'Verse Team';
 
 // Доверяем заголовкам обратного прокси (Nginx) — тогда req.secure учитывает

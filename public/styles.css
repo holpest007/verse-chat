@@ -929,6 +929,8 @@ body {
 }
 .s-row > span:not(.s-muted):not(.s-row-flag) { flex: 1; }
 .s-row:hover { background: var(--card-2); }
+/* Строки-ссылки (контакты) выглядят как обычные строки настроек */
+a.s-row, a.s-row:hover { text-decoration: none; }
 .s-row i { color: var(--muted); font-size: 16px; }
 .s-row-static { cursor: default; }
 .s-row-static:hover { background: var(--card); }

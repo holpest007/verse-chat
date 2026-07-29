@@ -1313,13 +1313,21 @@ const FAQ = [
 // ==========================================================================
 //  ПОДДЕРЖКА И УСЛОВИЯ
 // ==========================================================================
-$('#s-support').addEventListener('click', () => {
-  window.location.href = 'mailto:support@verseteam.app?subject=Поддержка Verse Team';
-});
-// Связь с админом — отдельный адрес (тот же механизм mailto)
-$('#s-admin').addEventListener('click', () => {
-  window.location.href = 'mailto:admin@verseteam.app?subject=Сообщение администратору Verse Team';
-});
+// Ссылки на поддержку и админа — обычные mailto в разметке (надёжно открывают
+// почтовый клиент). Здесь лишь подставляем в тело письма ID пользователя,
+// чтобы администрации не приходилось его запрашивать отдельно.
+(function fillContactLinks() {
+  const body = '\n\n---\nМой ID: ' + getUUID();
+  [['#s-support', 'support@verse-team.ru', 'Поддержка Verse Team'],
+   ['#s-admin', 'admin@verse-team.ru', 'Сообщение администратору Verse Team']]
+    .forEach(([sel, mail, subject]) => {
+      const el = document.querySelector(sel);
+      if (!el) return;
+      el.href = 'mailto:' + mail +
+        '?subject=' + encodeURIComponent(subject) +
+        '&body=' + encodeURIComponent(body);
+    });
+})();
 $('#s-terms').addEventListener('click', () => showSettingsView('terms'));
 
 // ==========================================================================

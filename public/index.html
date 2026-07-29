@@ -27,13 +27,13 @@
       {
         "@type": "ContactPoint",
         "contactType": "customer support",
-        "email": "support@verseteam.app",
+        "email": "support@verse-team.ru",
         "availableLanguage": ["Russian"]
       },
       {
         "@type": "ContactPoint",
         "contactType": "administration",
-        "email": "admin@verseteam.app",
+        "email": "admin@verse-team.ru",
         "availableLanguage": ["Russian"]
       }
     ]
@@ -796,20 +796,22 @@
             <span>Условия использования</span><i class="fa-solid fa-arrow-up-right-from-square"></i>
           </button>
           <!-- Контакты — в самом низу списка -->
-          <button class="s-row s-row-col" id="s-support">
+          <!-- Настоящие ссылки mailto: так почтовый клиент открывается надёжно,
+               в том числе на мобильных браузерах (JS-переход они часто блокируют) -->
+          <a class="s-row s-row-col" id="s-support" href="mailto:support@verse-team.ru?subject=Поддержка%20Verse%20Team">
             <div class="s-row-texts">
               <span><i class="fa-regular fa-comment-dots s-support-icon"></i> Связь с технической поддержкой</span>
-              <small>Написать в поддержку сервиса</small>
+              <small>support@verse-team.ru</small>
             </div>
             <i class="fa-solid fa-chevron-right"></i>
-          </button>
-          <button class="s-row s-row-col" id="s-admin">
+          </a>
+          <a class="s-row s-row-col" id="s-admin" href="mailto:admin@verse-team.ru?subject=Сообщение%20администратору%20Verse%20Team">
             <div class="s-row-texts">
               <span><i class="fa-solid fa-user-shield s-support-icon"></i> Связь с админом</span>
-              <small>Написать администратору</small>
+              <small>admin@verse-team.ru</small>
             </div>
             <i class="fa-solid fa-chevron-right"></i>
-          </button>
+          </a>
         </div>
       </div>
 
@@ -1078,8 +1080,8 @@
       <a href="/contacts">Контакты</a>
     </nav>
     <p class="site-footer-note">
-      Verse Team · Поддержка: <a href="mailto:support@verseteam.app">support@verseteam.app</a> ·
-      Администрация: <a href="mailto:admin@verseteam.app">admin@verseteam.app</a> · 18+
+      Verse Team · Поддержка: <a href="mailto:support@verse-team.ru">support@verse-team.ru</a> ·
+      Администрация: <a href="mailto:admin@verse-team.ru">admin@verse-team.ru</a> · 18+
     </p>
   </footer>
 
