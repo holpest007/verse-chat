@@ -209,13 +209,27 @@ function achProg(a, c) {
   const m = { calls: c.calls, minutes: c.minutes, level: c.level, ratings: c.ratingsCount, groups: c.groups, topics: c.topics, photos: c.photos, reg_days: c.regDays, modes: c.modesDone, nights: c.nights };
   return (a.condition_type in m) ? m[a.condition_type] : null;
 }
+function xpReward(a) {
+  if (a.condition_type === 'reg_days') return 100;
+  if (a.category === 'Специальные' || a.condition_type === 'avg_rating') return 75;
+  const v = a.condition_value || 0, t = a.condition_type;
+  const hard = { calls: 100, minutes: 300, ratings: 25, groups: 25, topics: 50, photos: 50 };
+  const medium = { calls: 10, minutes: 30, ratings: 5, groups: 10, topics: 15, photos: 10 };
+  if (v >= (hard[t] || Infinity)) return 50;
+  if (v >= (medium[t] || Infinity)) return 25;
+  return 10;
+}
 function checkAchievements(id) {
   const u = getUser(id); if (!u) return [];
   if (!userAch.has(id)) userAch.set(id, new Map());
   const have = userAch.get(id);
   const ctx = statCtx(u);
   const newly = [];
-  for (const a of ACHIEVEMENTS) if (!have.has(a.id) && achMet(a, ctx)) { have.set(a.id, Date.now()); newly.push(a); }
+  for (const a of ACHIEVEMENTS) if (!have.has(a.id) && achMet(a, ctx)) {
+    have.set(a.id, Date.now());
+    const xp = xpReward(a); if (xp) addXp(id, xp);
+    newly.push({ ...a, xp_reward: xp });
+  }
   return newly;
 }
 function getAchievements(id) {
@@ -224,7 +238,7 @@ function getAchievements(id) {
   const have = userAch.get(id) || new Map();
   return ACHIEVEMENTS.map((a) => {
     const cur = achProg(a, ctx);
-    return { id: a.id, name: a.name, description: a.description, icon: a.icon, category: a.category || 'Прочее', target: a.condition_value, progress: cur == null ? null : Math.min(cur, a.condition_value), numeric: cur != null, unlocked: have.has(a.id), unlockedAt: have.get(a.id) || null };
+    return { id: a.id, name: a.name, description: a.description, icon: a.icon, category: a.category || 'Прочее', target: a.condition_value, progress: cur == null ? null : Math.min(cur, a.condition_value), numeric: cur != null, xp: xpReward(a), unlocked: have.has(a.id), unlockedAt: have.get(a.id) || null };
   });
 }
 function incGroup(id) { const u = getUser(id); if (u) u.groupCount = (u.groupCount || 0) + 1; }

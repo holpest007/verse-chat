@@ -1565,6 +1565,7 @@ textarea.s-input { resize: vertical; font-family: inherit; }
 .ach.unlocked .ach-ic { filter: none; }
 .ach-name { font-size: 12px; font-weight: 600; line-height: 1.2; }
 .ach-prog { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.ach-xp { font-size: 10px; font-weight: 700; color: var(--gold); margin-top: 2px; }
 .ach.unlocked .ach-prog { color: var(--gold); font-weight: 600; }
 /* прогресс-бар незавершённого достижения */
 .ach-bar { height: 5px; background: var(--card); border-radius: 4px; overflow: hidden; margin: 6px 2px 2px; }

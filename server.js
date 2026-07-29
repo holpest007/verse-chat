@@ -341,7 +341,16 @@ function endOneToOne(socket) {
 function awardCheck(socket, uuid) {
   try {
     const newly = db.checkAchievements(uuid);
-    if (newly && newly.length) newly.forEach((a) => socket.emit('achievement:unlocked', { name: a.name, icon: a.icon }));
+    if (newly && newly.length) {
+      newly.forEach((a) => socket.emit('achievement:unlocked', { name: a.name, icon: a.icon, xp: a.xp_reward || 0 }));
+      // Достижения начислили XP — шлём свежие статы (обновится уровень и XP в UI)
+      try {
+        const st = db.getUserStats(uuid);
+        const me = users.get(socket.id);
+        if (me) me.level = st.level;
+        socket.emit('stat:me', st);
+      } catch (e) {}
+    }
   } catch (e) {}
 }
 

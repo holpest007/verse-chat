@@ -102,7 +102,8 @@ db.exec(`
     condition_type TEXT,      -- calls|minutes|ratings|avg_rating|groups|topics|photos|reg_days|modes|nights|combo
     condition_value INTEGER,
     condition_extra INTEGER DEFAULT 0, -- доп. параметр (напр. мин. число оценок для avg_rating)
-    category       TEXT DEFAULT ''
+    category       TEXT DEFAULT '',
+    xp_reward      INTEGER DEFAULT 0  -- сколько XP даёт получение достижения
   );
 
   -- Полученные пользователями достижения
@@ -177,9 +178,22 @@ const ACHIEVEMENTS = [
   { id: 40, name: 'Социальная бабочка', description: '50+ разговоров, 10+ оценок и 500+ минут в чате', icon: '🦋', condition_type: 'combo', condition_value: 0, category: 'Специальные' },
   { id: 41, name: 'Ночной режим', description: 'Провести 5+ разговоров между 00:00 и 06:00', icon: '🌙', condition_type: 'nights', condition_value: 5, category: 'Специальные' },
 ];
+// XP за достижение по тирам:
+//  вехи стажа — +100; специальные и качество оценок — +75;
+//  остальные по «весу» условия: простые +10, средние +25, сложные +50.
+function xpReward(a) {
+  if (a.condition_type === 'reg_days') return 100;
+  if (a.category === 'Специальные' || a.condition_type === 'avg_rating') return 75;
+  const v = a.condition_value || 0, t = a.condition_type;
+  const hard = { calls: 100, minutes: 300, ratings: 25, groups: 25, topics: 50, photos: 50 };
+  const medium = { calls: 10, minutes: 30, ratings: 5, groups: 10, topics: 15, photos: 10 };
+  if (v >= (hard[t] || Infinity)) return 50;
+  if (v >= (medium[t] || Infinity)) return 25;
+  return 10;
+}
 function seedAchievements() {
-  const up = db.prepare('INSERT OR REPLACE INTO achievements (id, name, description, icon, condition_type, condition_value, condition_extra, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-  for (const a of ACHIEVEMENTS) up.run(a.id, a.name, a.description, a.icon, a.condition_type, a.condition_value, a.condition_extra || 0, a.category || '');
+  const up = db.prepare('INSERT OR REPLACE INTO achievements (id, name, description, icon, condition_type, condition_value, condition_extra, category, xp_reward) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  for (const a of ACHIEVEMENTS) up.run(a.id, a.name, a.description, a.icon, a.condition_type, a.condition_value, a.condition_extra || 0, a.category || '', xpReward(a));
 }
 
 // Миграция: добавляем новые колонки в уже существующую базу (без потери данных)
@@ -204,7 +218,7 @@ for (const col of [
 }
 // Миграция таблицы достижений (для уже существующих баз) — ДО сида,
 // чтобы сид мог писать в новые колонки condition_extra/category.
-for (const col of ['condition_extra INTEGER DEFAULT 0', "category TEXT DEFAULT ''"]) {
+for (const col of ['condition_extra INTEGER DEFAULT 0', "category TEXT DEFAULT ''", 'xp_reward INTEGER DEFAULT 0']) {
   try { db.exec('ALTER TABLE achievements ADD COLUMN ' + col); } catch (e) { /* уже есть */ }
 }
 seedAchievements(); // теперь колонки точно существуют
@@ -552,7 +566,11 @@ function checkAchievements(id) {
   const newly = [];
   for (const a of stmts.allAchievements.all()) {
     if (have.has(a.id)) continue;
-    if (achMet(a, ctx)) { stmts.unlockAchievement.run(id, a.id, Date.now()); newly.push(a); }
+    if (achMet(a, ctx)) {
+      stmts.unlockAchievement.run(id, a.id, Date.now());
+      if (a.xp_reward) addXp(id, a.xp_reward); // начисляем XP и пересчитываем уровень
+      newly.push(a); // a.xp_reward уходит клиенту для тоста
+    }
   }
   return newly;
 }
@@ -569,6 +587,7 @@ function getAchievements(id) {
       target: a.condition_value,
       progress: cur == null ? null : Math.min(cur, a.condition_value),
       numeric: cur != null,
+      xp: a.xp_reward || 0,
       unlocked: have.has(a.id), unlockedAt: have.get(a.id) || null,
     };
   });

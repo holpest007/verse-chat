@@ -1316,6 +1316,10 @@ const FAQ = [
 $('#s-support').addEventListener('click', () => {
   window.location.href = 'mailto:support@verseteam.app?subject=Поддержка Verse Team';
 });
+// Связь с админом — отдельный адрес (тот же механизм mailto)
+$('#s-admin').addEventListener('click', () => {
+  window.location.href = 'mailto:admin@verseteam.app?subject=Сообщение администратору Verse Team';
+});
 $('#s-terms').addEventListener('click', () => showSettingsView('terms'));
 
 // ==========================================================================
@@ -2113,9 +2117,10 @@ function renderAchievements(list) {
       const pct = (numeric && a.target) ? Math.min(100, Math.round(((a.progress || 0) / a.target) * 100)) : (a.unlocked ? 100 : 0);
       const status = a.unlocked ? 'Получено' : (numeric ? (a.progress || 0) + ' / ' + a.target : 'Не выполнено');
       const bar = (numeric && !a.unlocked) ? '<div class="ach-bar"><span style="width:' + pct + '%"></span></div>' : '';
+      const xpTag = a.xp ? '<div class="ach-xp">+' + a.xp + ' XP</div>' : '';
       return '<div class="ach' + (a.unlocked ? ' unlocked' : '') + '" title="' + escapeHtml(a.description || '') + '">' +
         '<div class="ach-ic">' + escapeHtml(a.icon || '🏅') + '</div>' +
-        '<div class="ach-name">' + escapeHtml(a.name || '') + '</div>' + bar +
+        '<div class="ach-name">' + escapeHtml(a.name || '') + '</div>' + xpTag + bar +
         '<div class="ach-prog">' + status + '</div></div>';
     }).join('');
     return '<div class="ach-cat"><div class="ach-cat-h">' + escapeHtml(cat) + '</div><div class="ach-grid">' + items + '</div></div>';
@@ -2200,9 +2205,13 @@ socket.on('stat:me', (s) => {
   const panel = document.getElementById('panel-stats');
   if (panel && panel.classList.contains('active')) loadStatsTab();
 });
-// Уведомление о новом достижении (тост с эмодзи в углу экрана)
+// Уведомление о новом достижении (тост с эмодзи и начисленными XP)
 socket.on('achievement:unlocked', (a) => {
-  if (a && a.name) toast((a.icon || '🏆') + ' Достижение: ' + a.name);
+  if (!a || !a.name) return;
+  const xp = a.xp ? ' (+' + a.xp + ' XP)' : '';
+  toast((a.icon || '🏆') + ' Достижение: ' + a.name + xp);
+  // Обновим сетку достижений и бейджи, если они на экране
+  if (typeof loadAchievements === 'function') loadAchievements();
 });
 
 // Переключение под-вкладок статистики: Обзор / Достижения
