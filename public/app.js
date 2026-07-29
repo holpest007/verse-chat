@@ -2287,10 +2287,16 @@ document.querySelectorAll('.topic-btn').forEach((btn) => {
     socket.emit('topic:share', { topic }); // синхронизируем с собеседником/группой
   });
 });
-// Собеседник/группа выбрал(и) тему — показываем её у себя
+// Собеседник/группа выбрал(и) тему — показываем её у себя.
+// Режим определяем по РЕАЛЬНОМУ активному контексту, а не по currentMode
+// (он не сбрасывается после звонка и мог указывать на прошлый режим).
 socket.on('topic:share', ({ topic }) => {
   if (!topic) return;
-  const mode = currentMode || (groupCode ? 'group' : '');
+  let mode = '';
+  if (groupCode) mode = 'group';
+  else if (voicePeerId) mode = 'voice';
+  else if (videoPeerId) mode = 'video';
+  else if (textPeerId) mode = 'text';
   if (mode) setTopicText(mode, topic);
 });
 
