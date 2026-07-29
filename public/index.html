@@ -4,7 +4,41 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <meta name="theme-color" content="#0b0b0f" />
-  <title>Verse Team</title>
+  <title>Verse Team — анонимный голосовой, видео и текстовый чат</title>
+  <meta name="description" content="Verse Team — анонимный чат для общения голосом, по видео и текстом. Поиск собеседника по городу, полу и возрасту, групповые комнаты, рейтинг собеседников. Без регистрации, 18+." />
+  <link rel="canonical" href="https://verse-team.ru/" />
+  <meta name="robots" content="index, follow" />
+  <!-- Open Graph — как сайт выглядит при отправке ссылкой -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Verse Team" />
+  <meta property="og:title" content="Verse Team — анонимный голосовой, видео и текстовый чат" />
+  <meta property="og:description" content="Общение голосом, по видео и текстом с новыми людьми. Поиск по городу, полу и возрасту. Без регистрации, 18+." />
+  <meta property="og:url" content="https://verse-team.ru/" />
+  <!-- Владелец сайта и контактная информация (Schema.org) — для поисковых
+       систем и нейросетевых ответов -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "Verse Team",
+    "url": "https://verse-team.ru/",
+    "description": "Анонимный сервис общения: голосовой, видео и текстовый чат, групповые комнаты.",
+    "contactPoint": [
+      {
+        "@type": "ContactPoint",
+        "contactType": "customer support",
+        "email": "support@verseteam.app",
+        "availableLanguage": ["Russian"]
+      },
+      {
+        "@type": "ContactPoint",
+        "contactType": "administration",
+        "email": "admin@verseteam.app",
+        "availableLanguage": ["Russian"]
+      }
+    ]
+  }
+  </script>
 
   <!-- Основные стили (свой сервер) -->
   <link rel="stylesheet" href="styles.css" />
@@ -1035,6 +1069,19 @@
       </div>
     </div>
   </div>
+
+  <!-- Футер: документы и контакты (нужны пользователям и поисковым системам) -->
+  <footer class="site-footer">
+    <nav class="site-footer-links">
+      <a href="/privacy">Политика конфиденциальности</a>
+      <a href="/terms">Пользовательское соглашение</a>
+      <a href="/contacts">Контакты</a>
+    </nav>
+    <p class="site-footer-note">
+      Verse Team · Поддержка: <a href="mailto:support@verseteam.app">support@verseteam.app</a> ·
+      Администрация: <a href="mailto:admin@verseteam.app">admin@verseteam.app</a> · 18+
+    </p>
+  </footer>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="app.js"></script>

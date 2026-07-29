@@ -24,6 +24,148 @@ const io = new Server(server);
 // Лимит тела запроса поднят до 8 МБ: фото в чате приходят как base64 (data-URL)
 app.use(express.json({ limit: '8mb' }));
 
+// ============================================================================
+//  SEO И БЕЗОПАСНОСТЬ (robots.txt, sitemap.xml, HSTS)
+//  Канонический адрес сайта: задаётся в .env (SITE_URL), иначе — прод-домен.
+// ============================================================================
+const SITE_URL = (process.env.SITE_URL || 'https://verse-team.ru').replace(/\/+$/, '');
+// Контакты сервиса — используются в разметке владельца/контактов и на странице политики
+const CONTACT_EMAIL = process.env.CONTACT_EMAIL || 'support@verseteam.app';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@verseteam.app';
+const OWNER_NAME = process.env.OWNER_NAME || 'Verse Team';
+
+// Заголовки безопасности: HSTS (только по HTTPS) + базовая защита
+app.use((req, res, next) => {
+  const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+  if (isHttps) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  }
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
+// robots.txt — единый для всего сайта (закрываем служебные разделы)
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain').send(
+    'User-agent: *\n' +
+    'Allow: /\n' +
+    'Disallow: /admin\n' +
+    'Disallow: /api/\n' +
+    'Disallow: /uploads/\n' +
+    'Clean-param: v&utm_source&utm_medium&utm_campaign\n' +
+    'Host: ' + SITE_URL.replace(/^https?:\/\//, '') + '\n' +
+    'Sitemap: ' + SITE_URL + '/sitemap.xml\n'
+  );
+});
+
+// sitemap.xml с датой обновления (lastmod). Дату берём по времени сборки файлов,
+// чтобы она менялась вместе с реальными обновлениями сайта.
+function siteLastmod() {
+  let newest = 0;
+  for (const f of ['public/index.html', 'public/app.js', 'public/styles.css']) {
+    try { newest = Math.max(newest, fs.statSync(path.join(__dirname, f)).mtimeMs); } catch (e) {}
+  }
+  return new Date(newest || Date.now()).toISOString().slice(0, 10);
+}
+app.get('/sitemap.xml', (req, res) => {
+  const lastmod = siteLastmod();
+  const pages = [
+    { loc: '/', priority: '1.0', freq: 'daily' },
+    { loc: '/privacy', priority: '0.5', freq: 'monthly' },
+    { loc: '/terms', priority: '0.5', freq: 'monthly' },
+    { loc: '/contacts', priority: '0.6', freq: 'monthly' },
+  ];
+  res.type('application/xml').send(
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+    pages.map((p) =>
+      '  <url>\n' +
+      '    <loc>' + SITE_URL + p.loc + '</loc>\n' +
+      '    <lastmod>' + lastmod + '</lastmod>\n' +
+      '    <changefreq>' + p.freq + '</changefreq>\n' +
+      '    <priority>' + p.priority + '</priority>\n' +
+      '  </url>\n').join('') +
+    '</urlset>\n'
+  );
+});
+
+// --- Простые индексируемые страницы: политика, условия, контакты ---
+// Нужны и людям, и роботам: аудиты проверяют наличие политики конфиденциальности,
+// владельца сайта и контактной информации (в т.ч. в разметке Schema.org).
+function seoPage(title, description, bodyHtml) {
+  return '<!DOCTYPE html>\n<html lang="ru">\n<head>\n' +
+    '<meta charset="UTF-8" />\n' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0" />\n' +
+    '<title>' + title + ' — Verse Team</title>\n' +
+    '<meta name="description" content="' + description + '" />\n' +
+    '<link rel="canonical" href="' + SITE_URL + '" />\n' +
+    '<style>body{margin:0;padding:24px;background:#0b0b0f;color:#e9e9ee;' +
+    'font:16px/1.6 -apple-system,Segoe UI,Roboto,Inter,sans-serif}' +
+    '.wrap{max-width:760px;margin:0 auto}h1{font-size:26px}h2{font-size:19px;margin-top:28px}' +
+    'a{color:#8b94ff}.back{display:inline-block;margin-bottom:18px}' +
+    'address{font-style:normal;background:#16161c;border:1px solid #26262f;border-radius:12px;padding:14px}' +
+    '</style>\n</head>\n<body><div class="wrap">' +
+    '<a class="back" href="/">← На главную</a>' + bodyHtml +
+    '</div></body>\n</html>\n';
+}
+// Блок владельца и контактов (используется на всех страницах и в разметке)
+const contactsBlock =
+  '<address>' +
+  '<div><b>Владелец сайта:</b> ' + OWNER_NAME + '</div>' +
+  '<div><b>Техническая поддержка:</b> <a href="mailto:' + CONTACT_EMAIL + '">' + CONTACT_EMAIL + '</a></div>' +
+  '<div><b>Администрация:</b> <a href="mailto:' + ADMIN_EMAIL + '">' + ADMIN_EMAIL + '</a></div>' +
+  '<div><b>Сайт:</b> <a href="' + SITE_URL + '">' + SITE_URL + '</a></div>' +
+  '</address>';
+
+app.get('/privacy', (req, res) => {
+  res.type('html').send(seoPage('Политика конфиденциальности',
+    'Политика конфиденциальности сервиса Verse Team: какие данные обрабатываются и как они защищены.',
+    '<h1>Политика конфиденциальности</h1>' +
+    '<p>Сервис Verse Team (далее — Сервис) обеспечивает анонимное общение и обрабатывает минимально необходимый объём данных.</p>' +
+    '<h2>1. Какие данные обрабатываются</h2>' +
+    '<p>Анонимный идентификатор устройства (UUID), сохраняемый локально в браузере; указанные вами вручную параметры профиля (никнейм, пол, возраст, город); техническая информация о соединении, необходимая для работы связи; статистика использования (число разговоров, время в чате, оценки).</p>' +
+    '<h2>2. Регистрация и персональные данные</h2>' +
+    '<p>Регистрация по имени, телефону или адресу электронной почты не требуется. Сервис не запрашивает документы и платёжные данные для базового использования.</p>' +
+    '<h2>3. Содержание разговоров</h2>' +
+    '<p>Голосовые и видеозвонки передаются напрямую между участниками (WebRTC) и не записываются Сервисом. Записи возможны только по инициативе самого пользователя на его устройстве.</p>' +
+    '<h2>4. Цели обработки</h2>' +
+    '<p>Подбор собеседников по выбранным фильтрам, обеспечение работы чатов, модерация нарушений по жалобам, ведение статистики и уровней пользователя.</p>' +
+    '<h2>5. Передача третьим лицам</h2>' +
+    '<p>Данные не продаются и не передаются третьим лицам, кроме случаев, прямо предусмотренных законом.</p>' +
+    '<h2>6. Хранение и удаление</h2>' +
+    '<p>Вы можете в любой момент удалить профиль в настройках Сервиса, а также очистить локальные данные средствами браузера.</p>' +
+    '<h2>7. Возрастное ограничение</h2>' +
+    '<p>Сервис предназначен для лиц старше 18 лет.</p>' +
+    '<h2>8. Контакты</h2>' + contactsBlock));
+});
+
+app.get('/terms', (req, res) => {
+  res.type('html').send(seoPage('Пользовательское соглашение',
+    'Пользовательское соглашение сервиса Verse Team: правила использования, запреты и ответственность.',
+    '<h1>Пользовательское соглашение</h1>' +
+    '<p>Используя Сервис, вы принимаете условия настоящего Соглашения.</p>' +
+    '<h2>1. Требования к пользователям</h2>' +
+    '<p>Сервис предназначен для лиц старше 18 лет. Пользователь обязуется соблюдать законы своей страны.</p>' +
+    '<h2>2. Запрещено</h2>' +
+    '<p>Нагота и сексуальный контент; преследования, угрозы и травля; ненависть, экстремизм и дискриминация; спам, реклама и мошенничество; выдача себя за других лиц; публикация данных третьих лиц без согласия.</p>' +
+    '<h2>3. Модерация</h2>' +
+    '<p>Жалобы рассматриваются администрацией. При нарушении доступ может быть ограничен или заблокирован без предварительного предупреждения.</p>' +
+    '<h2>4. Ответственность</h2>' +
+    '<p>Сервис предоставляется «как есть». Пользователь несёт ответственность за своё поведение и передаваемый контент.</p>' +
+    '<h2>5. Контакты</h2>' + contactsBlock));
+});
+
+app.get('/contacts', (req, res) => {
+  res.type('html').send(seoPage('Контакты',
+    'Контактная информация Verse Team: владелец сайта, техническая поддержка и администрация.',
+    '<h1>Контактная информация</h1>' +
+    '<p>Свяжитесь с нами по вопросам работы Сервиса, модерации или сотрудничества.</p>' +
+    contactsBlock +
+    '<h2>Документы</h2>' +
+    '<p><a href="/privacy">Политика конфиденциальности</a> · <a href="/terms">Пользовательское соглашение</a></p>'));
+});
+
 // Раздаём статику (index.html, styles.css, app.js) из папки public
 app.use(express.static(path.join(__dirname, 'public')));
 

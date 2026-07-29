@@ -448,6 +448,23 @@ body {
 .msg-form .input { flex: 1; }
 
 /* ---------- Нижняя навигация ---------- */
+/* Футер с документами и контактами (для пользователей и поисковых систем).
+   Нижний отступ — чтобы фиксированная навигация не перекрывала текст. */
+.site-footer {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 20px 16px calc(110px + env(safe-area-inset-bottom, 0px));
+  text-align: center;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.site-footer-links { display: flex; flex-wrap: wrap; gap: 6px 16px; justify-content: center; margin-bottom: 8px; }
+.site-footer a { color: var(--muted); text-decoration: underline; }
+.site-footer a:hover { color: var(--text); }
+.site-footer-note { margin: 0; }
+
 .bottom-nav {
   position: fixed;
   bottom: 0; left: 50%;
