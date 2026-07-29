@@ -34,9 +34,17 @@ const CONTACT_EMAIL = process.env.CONTACT_EMAIL || 'support@verseteam.app';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@verseteam.app';
 const OWNER_NAME = process.env.OWNER_NAME || 'Verse Team';
 
-// Заголовки безопасности: HSTS (только по HTTPS) + базовая защита
+// Доверяем заголовкам обратного прокси (Nginx) — тогда req.secure учитывает
+// X-Forwarded-Proto, если прокси его передаёт.
+app.set('trust proxy', true);
+
+// Если сайт открывается ТОЛЬКО по HTTPS, но прокси не передаёт X-Forwarded-Proto,
+// включите FORCE_HSTS=1 в .env — заголовок будет отдаваться всегда.
+const FORCE_HSTS = process.env.FORCE_HSTS === '1';
+
+// Заголовки безопасности: HSTS (по HTTPS или при FORCE_HSTS) + базовая защита
 app.use((req, res, next) => {
-  const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+  const isHttps = FORCE_HSTS || req.secure || req.headers['x-forwarded-proto'] === 'https';
   if (isHttps) {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   }
