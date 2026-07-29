@@ -49,6 +49,18 @@ app.post('/api/upload', (req, res) => {
   }
 });
 
+// --- Список всех достижений + прогресс пользователя ---
+// uuid передаётся клиентом в query (анонимный id из localStorage). Возвращаем ВСЕ
+// достижения (полученные и нет) с прогрессом; 0 — если данных о пользователе нет.
+app.get('/api/achievements', (req, res) => {
+  const uuid = String(req.query.uuid || '').slice(0, 64);
+  try {
+    res.json({ ok: true, achievements: db.getAchievements(uuid) });
+  } catch (e) {
+    res.json({ ok: false, achievements: [] });
+  }
+});
+
 
 // Раздаём FontAwesome со своего сервера (иконки без внешних CDN,
 // чтобы сайт открывался в РФ без VPN)

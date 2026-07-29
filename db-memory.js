@@ -252,9 +252,10 @@ function todayProgress(id) {
   let minutes = 0; rows.forEach((r) => { minutes += Math.floor((parseInt(String(r.info), 10) || 0) / 60); });
   return { minutes, calls: rows.length };
 }
-function dayKey() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+// Имя отличается от analytics-функции dayKey(d) ниже (иначе hoisting ломал челленджи).
+function todayKey() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function getChallenges(id) {
-  const prog = todayProgress(id); const day = dayKey();
+  const prog = todayProgress(id); const day = todayKey();
   return CHALLENGES.map((c) => {
     const cur = c.kind === 'minutes' ? prog.minutes : prog.calls;
     return { kind: c.kind, name: c.name, target: c.target, progress: Math.min(cur, c.target), reward: c.reward, done: cur >= c.target, claimed: claims.has(id + '|' + day + '|' + c.kind) };
@@ -265,7 +266,7 @@ function claimChallenge(id, kind) {
   if (!c) return { ok: false, error: 'Неизвестный челлендж' };
   const prog = todayProgress(id); const cur = c.kind === 'minutes' ? prog.minutes : prog.calls;
   if (cur < c.target) return { ok: false, error: 'Челлендж ещё не выполнен' };
-  const key = id + '|' + dayKey() + '|' + kind;
+  const key = id + '|' + todayKey() + '|' + kind;
   if (claims.has(key)) return { ok: false, error: 'Бонус уже получен' };
   claims.add(key); const st = addXp(id, c.reward);
   return { ok: true, reward: c.reward, points: st ? st.points : 0, level: st ? st.level : 1 };

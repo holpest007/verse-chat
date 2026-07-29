@@ -2081,6 +2081,45 @@ let myStats = { convCount: 0, totalDuration: 0, points: 0, xp: 0, level: 1 };
 // Загрузить и отрисовать вкладку статистики
 function loadStatsTab() {
   socket.emit('stats:get', (data) => { if (data) renderStatsTab(data); });
+  loadAchievements(); // сетка достижений — отдельным запросом GET /api/achievements
+}
+
+// Загрузка всех достижений с прогрессом пользователя (REST, как в ТЗ)
+function loadAchievements() {
+  fetch('/api/achievements?uuid=' + encodeURIComponent(getUUID()))
+    .then((r) => r.json())
+    .then((res) => { renderAchievements((res && res.achievements) || []); })
+    .catch(() => {});
+}
+
+// Отрисовать все достижения: по категориям, полученные выделены, остальные заблокированы
+function renderAchievements(list) {
+  const ag = document.getElementById('st-achievements');
+  if (!ag) return;
+  if (!list.length) { ag.innerHTML = '<div class="empty-note">Достижения загружаются…</div>'; return; }
+  const cats = [], byCat = {};
+  list.forEach((a) => { const c = a.category || 'Прочее'; if (!byCat[c]) { byCat[c] = []; cats.push(c); } byCat[c].push(a); });
+  const sum = document.getElementById('st-ach-summary');
+  if (sum) {
+    const got = list.filter((a) => a.unlocked).length, total = list.length, left = total - got;
+    const p = total ? Math.round((got / total) * 100) : 0;
+    sum.innerHTML = '<div class="ach-sum-top"><b>Получено ' + got + ' из ' + total + '</b>' +
+      '<span>осталось ' + left + ' · ' + p + '%</span></div>' +
+      '<div class="mini-bar"><span style="width:' + p + '%"></span></div>';
+  }
+  ag.innerHTML = cats.map((cat) => {
+    const items = byCat[cat].map((a) => {
+      const numeric = (a.numeric !== undefined) ? a.numeric : (a.target != null);
+      const pct = (numeric && a.target) ? Math.min(100, Math.round(((a.progress || 0) / a.target) * 100)) : (a.unlocked ? 100 : 0);
+      const status = a.unlocked ? 'Получено' : (numeric ? (a.progress || 0) + ' / ' + a.target : 'Не выполнено');
+      const bar = (numeric && !a.unlocked) ? '<div class="ach-bar"><span style="width:' + pct + '%"></span></div>' : '';
+      return '<div class="ach' + (a.unlocked ? ' unlocked' : '') + '" title="' + escapeHtml(a.description || '') + '">' +
+        '<div class="ach-ic">' + escapeHtml(a.icon || '🏅') + '</div>' +
+        '<div class="ach-name">' + escapeHtml(a.name || '') + '</div>' + bar +
+        '<div class="ach-prog">' + status + '</div></div>';
+    }).join('');
+    return '<div class="ach-cat"><div class="ach-cat-h">' + escapeHtml(cat) + '</div><div class="ach-grid">' + items + '</div></div>';
+  }).join('');
 }
 function fmtMinutes(min) {
   if (min >= 60) { const h = Math.floor(min / 60), m = min % 60; return h + ' ч' + (m ? ' ' + m + ' мин' : ''); }
@@ -2127,33 +2166,9 @@ function renderStatsTab(data) {
     ch.innerHTML = head + items;
   }
 
-  // Достижения — по категориям, с прогрессом и тултипами
-  const ag = document.getElementById('st-achievements');
-  if (ag) {
-    const list = data.achievements || [];
-    const cats = [], byCat = {};
-    list.forEach((a) => { const c = a.category || 'Прочее'; if (!byCat[c]) { byCat[c] = []; cats.push(c); } byCat[c].push(a); });
-    const sum = document.getElementById('st-ach-summary');
-    if (sum) {
-      const got = list.filter((a) => a.unlocked).length, total = list.length, left = total - got;
-      const p = total ? Math.round((got / total) * 100) : 0;
-      sum.innerHTML = '<div class="ach-sum-top"><b>Получено ' + got + ' из ' + total + '</b>' +
-        '<span>осталось ' + left + ' · ' + p + '%</span></div>' +
-        '<div class="mini-bar"><span style="width:' + p + '%"></span></div>';
-    }
-    ag.innerHTML = cats.map((cat) => {
-      const items = byCat[cat].map((a) => {
-        const pct = (a.numeric && a.target) ? Math.min(100, Math.round((a.progress / a.target) * 100)) : (a.unlocked ? 100 : 0);
-        const status = a.unlocked ? 'Получено' : (a.numeric ? a.progress + ' / ' + a.target : 'Не выполнено');
-        const bar = (a.numeric && !a.unlocked) ? '<div class="ach-bar"><span style="width:' + pct + '%"></span></div>' : '';
-        return '<div class="ach' + (a.unlocked ? ' unlocked' : '') + '" title="' + escapeHtml(a.description) + '">' +
-          '<div class="ach-ic">' + escapeHtml(a.icon) + '</div>' +
-          '<div class="ach-name">' + escapeHtml(a.name) + '</div>' + bar +
-          '<div class="ach-prog">' + status + '</div></div>';
-      }).join('');
-      return '<div class="ach-cat"><div class="ach-cat-h">' + escapeHtml(cat) + '</div><div class="ach-grid">' + items + '</div></div>';
-    }).join('');
-  }
+  // Сетку достижений рисует loadAchievements() (GET /api/achievements).
+  // Если сокет всё же вернул достижения — используем их сразу (без ожидания REST).
+  if (data.achievements && data.achievements.length) renderAchievements(data.achievements);
   renderProfileBadges(data.achievements); // синхронизируем бейджи в профиле
 
   // Таблица лидеров

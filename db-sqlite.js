@@ -607,7 +607,10 @@ function todayProgress(id) {
   rows.forEach((r) => { const sec = parseInt(String(r.info), 10) || 0; minutes += Math.floor(sec / 60); });
   return { minutes, calls: rows.length };
 }
-function dayKey() {
+// Ключ сегодняшнего дня 'YYYY-MM-DD' (без аргументов). ВАЖНО: имя отличается от
+// analytics-функции dayKey(d) ниже — иначе из-за hoisting челленджи падали и вся
+// вкладка «Статистика» (включая достижения) не отображалась.
+function todayKey() {
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
@@ -619,7 +622,7 @@ const CHALLENGES = [
 // Список челленджей с прогрессом и статусом получения
 function getChallenges(id) {
   const prog = todayProgress(id);
-  const day = dayKey();
+  const day = todayKey();
   return CHALLENGES.map((c) => {
     const cur = c.kind === 'minutes' ? prog.minutes : prog.calls;
     const claimed = !!stmts.getClaim.get(id, day, c.kind);
@@ -633,7 +636,7 @@ function claimChallenge(id, kind) {
   const prog = todayProgress(id);
   const cur = c.kind === 'minutes' ? prog.minutes : prog.calls;
   if (cur < c.target) return { ok: false, error: 'Челлендж ещё не выполнен' };
-  const day = dayKey();
+  const day = todayKey();
   if (stmts.getClaim.get(id, day, kind)) return { ok: false, error: 'Бонус уже получен' };
   stmts.addClaim.run(id, day, kind, Date.now());
   const st = addXp(id, c.reward);
