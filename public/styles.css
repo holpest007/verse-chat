@@ -513,17 +513,19 @@ body {
 }
 
 .bottom-nav {
-  position: fixed;
-  bottom: 0; left: 50%;
-  transform: translateX(-50%);
-  width: 100%; max-width: 480px;
+  position: fixed !important;
+  left: 50%; right: auto; bottom: 0;
+  transform: translateX(-50%) translateZ(0);
+  width: min(100vw, 520px); max-width: 520px;
+  min-height: 76px;
   display: flex;
   justify-content: space-around;
   background: var(--nav-bg);
   backdrop-filter: blur(12px);
   border-top: 1px solid var(--border);
   padding: 10px 8px calc(10px + env(safe-area-inset-bottom, 0px));
-  z-index: 50;
+  z-index: 1000;
+  will-change: transform;
 }
 .nav-tab {
   flex: 1;
@@ -1204,7 +1206,7 @@ a.s-row, a.s-row:hover { text-decoration: none; }
 /* ---------- Десктоп: чуть шире и по центру ---------- */
 @media (min-width: 640px) {
   .app { max-width: 520px; }
-  .bottom-nav { max-width: 520px; border-radius: 20px 20px 0 0; }
+  .bottom-nav { width: min(100vw, 520px); border-radius: 20px 20px 0 0; }
 }
 
 /* ==========================================================================

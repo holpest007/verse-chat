@@ -445,15 +445,22 @@ $('#voice-mute').addEventListener('click', () => {
 });
 
 // Кнопка «Динамик» (вкл/выкл звук собеседника)
+function updateVoiceSpeakerButton() {
+  const btn = $('#voice-speaker');
+  if (!btn) return;
+  btn.classList.toggle('muted', voiceSpeakerMuted);
+  btn.title = voiceSpeakerMuted ? 'Тихая связь — включить громкую' : 'Громкая связь — выключить звук';
+  btn.setAttribute('aria-label', btn.title);
+  btn.innerHTML = voiceSpeakerMuted
+    ? '<i class="fa-solid fa-volume-xmark"></i>'
+    : '<i class="fa-solid fa-volume-high"></i>';
+}
+
 $('#voice-speaker').addEventListener('click', () => {
   const audio = $('#voice-audio');
   voiceSpeakerMuted = !voiceSpeakerMuted;
   audio.muted = voiceSpeakerMuted;
-  const btn = $('#voice-speaker');
-  btn.classList.toggle('muted', voiceSpeakerMuted);
-  btn.innerHTML = voiceSpeakerMuted
-    ? '<i class="fa-solid fa-volume-xmark"></i>'
-    : '<i class="fa-solid fa-volume-high"></i>';
+  updateVoiceSpeakerButton();
   if (!voiceSpeakerMuted && audio.srcObject) {
     audio.play().then(() => setVoiceConnectionStatus('Звук подключён', 'ok')).catch(() => {});
   }
@@ -467,8 +474,7 @@ $('#voice-volume').addEventListener('input', (e) => {
   if (voiceVolume > 0 && voiceSpeakerMuted) {
     voiceSpeakerMuted = false;
     audio.muted = false;
-    $('#voice-speaker').classList.remove('muted');
-    $('#voice-speaker').innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+    updateVoiceSpeakerButton();
   }
 });
 
@@ -514,9 +520,8 @@ async function proceedVoiceMatch({ peerId, initiator, partner }) {
   // сброс кнопок mute/speaker
   $('#voice-mute').classList.remove('muted');
   $('#voice-mute').innerHTML = '<i class="fa-solid fa-microphone"></i>';
-  $('#voice-speaker').classList.remove('muted');
-  $('#voice-speaker').innerHTML = '<i class="fa-solid fa-volume-high"></i>';
   voiceSpeakerMuted = false;
+  updateVoiceSpeakerButton();
   $('#voice-audio').volume = voiceVolume;
   $('#voice-audio').muted = false;
   $('#voice-volume').value = String(voiceVolume);
