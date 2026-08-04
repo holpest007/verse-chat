@@ -757,6 +757,21 @@ body {
   margin-top: auto;
   padding-top: 30px;
 }
+.voice-volume {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: min(260px, 86%); margin: 16px auto 0;
+  color: var(--muted); font-size: 13px;
+}
+.voice-volume input {
+  flex: 1; min-width: 0; accent-color: var(--indigo);
+  cursor: pointer;
+}
+.voice-connection-status {
+  min-height: 18px; margin: 8px 0 0;
+  color: var(--muted); font-size: 12px; text-align: center;
+}
+.voice-connection-status.is-ok { color: var(--green); }
+.voice-connection-status.is-error { color: var(--danger); }
 .round-btn {
   width: 62px; height: 62px;
   border-radius: 50%;

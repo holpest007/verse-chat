@@ -321,6 +321,8 @@ function stopTimer(name) {
 let voicePC = null;
 let localStream = null;
 let voicePeerId = null;
+let voiceVolume = Math.min(1, Math.max(0, Number(localStorage.getItem('vt_voice_volume') || 1)));
+let voiceSpeakerMuted = false;
 let currentMode = null; // 'voice' | 'text' — для модалок жалобы/правил
 // Метки начала разговора (для статистики длительности), в мс. 0 — разговор не идёт
 let voiceCallStart = 0, textChatStart = 0, groupStart = 0, videoCallStart = 0;
@@ -354,28 +356,52 @@ function createVoicePC(peerId) {
     // Голосовой чат — только звук
     const a = $('#voice-audio');
     a.srcObject = e.streams[0] || new MediaStream([e.track]);
-    a.muted = false;
+    a.autoplay = true;
+    a.volume = voiceVolume;
+    a.muted = voiceSpeakerMuted;
     a.playsInline = true;
-    // Явно запускаем воспроизведение — на iOS <audio autoplay> сам не играет
-    a.play().catch(() => {
-      toast('Нажмите кнопку динамика, чтобы включить звук собеседника');
-    });
+    const playRemoteAudio = () => {
+      if (!a.srcObject || voiceSpeakerMuted) return;
+      a.play().then(() => {
+        setVoiceConnectionStatus('Звук подключён', 'ok');
+      }).catch(() => {
+        setVoiceConnectionStatus('Нажмите кнопку динамика для включения звука', 'error');
+      });
+    };
+    // Повторяем запуск после появления метаданных: мобильные браузеры могут
+    // принять track раньше, чем audio-элемент станет готов к воспроизведению.
+    a.onloadedmetadata = playRemoteAudio;
+    e.track.onunmute = playRemoteAudio;
+    playRemoteAudio();
   };
   pc.onicecandidate = (e) => {
     if (e.candidate) socket.emit('signal', { to: peerId, data: { candidate: e.candidate } });
   };
   pc.oniceconnectionstatechange = () => {
+    if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+      setVoiceConnectionStatus('Сеть подключена, проверяем звук…', 'ok');
+    }
     if (['failed', 'disconnected'].includes(pc.iceConnectionState)) {
       console.warn('[voice] ICE-соединение:', pc.iceConnectionState);
+      setVoiceConnectionStatus('Не удалось провести звук через сеть', 'error');
     }
   };
   pc.onconnectionstatechange = () => {
     console.info('[voice] WebRTC-соединение:', pc.connectionState);
     if (pc.connectionState === 'failed') {
       toast('Не удалось соединить голосовой канал. Попробуйте начать звонок ещё раз');
+      setVoiceConnectionStatus('Голосовой канал не подключён', 'error');
     }
   };
   return pc;
+}
+
+function setVoiceConnectionStatus(text, state) {
+  const el = $('#voice-connection-status');
+  if (!el) return;
+  el.textContent = text || '';
+  el.classList.toggle('is-ok', state === 'ok');
+  el.classList.toggle('is-error', state === 'error');
 }
 
 // Начать поиск голосового собеседника
@@ -421,12 +447,29 @@ $('#voice-mute').addEventListener('click', () => {
 // Кнопка «Динамик» (вкл/выкл звук собеседника)
 $('#voice-speaker').addEventListener('click', () => {
   const audio = $('#voice-audio');
-  audio.muted = !audio.muted;
+  voiceSpeakerMuted = !voiceSpeakerMuted;
+  audio.muted = voiceSpeakerMuted;
   const btn = $('#voice-speaker');
-  btn.classList.toggle('muted', audio.muted);
-  btn.innerHTML = audio.muted
+  btn.classList.toggle('muted', voiceSpeakerMuted);
+  btn.innerHTML = voiceSpeakerMuted
     ? '<i class="fa-solid fa-volume-xmark"></i>'
     : '<i class="fa-solid fa-volume-high"></i>';
+  if (!voiceSpeakerMuted && audio.srcObject) {
+    audio.play().then(() => setVoiceConnectionStatus('Звук подключён', 'ok')).catch(() => {});
+  }
+});
+
+$('#voice-volume').addEventListener('input', (e) => {
+  voiceVolume = Number(e.target.value);
+  localStorage.setItem('vt_voice_volume', String(voiceVolume));
+  const audio = $('#voice-audio');
+  audio.volume = voiceVolume;
+  if (voiceVolume > 0 && voiceSpeakerMuted) {
+    voiceSpeakerMuted = false;
+    audio.muted = false;
+    $('#voice-speaker').classList.remove('muted');
+    $('#voice-speaker').innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+  }
 });
 
 function closeVoice() {
@@ -473,7 +516,11 @@ async function proceedVoiceMatch({ peerId, initiator, partner }) {
   $('#voice-mute').innerHTML = '<i class="fa-solid fa-microphone"></i>';
   $('#voice-speaker').classList.remove('muted');
   $('#voice-speaker').innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+  voiceSpeakerMuted = false;
+  $('#voice-audio').volume = voiceVolume;
   $('#voice-audio').muted = false;
+  $('#voice-volume').value = String(voiceVolume);
+  setVoiceConnectionStatus('Подключение звука…');
   showScreen('voice', 'call');
   startTimer('voiceCall', '#voice-timer');
   voiceCallStart = Date.now();
