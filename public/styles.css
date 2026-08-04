@@ -451,19 +451,27 @@ body {
 /* Футер с документами и контактами (для пользователей и поисковых систем).
    Нижний отступ — чтобы фиксированная навигация не перекрывала текст. */
 .site-footer {
-  max-width: 480px;
-  margin: 0 auto;
-  padding: 20px 16px calc(110px + env(safe-area-inset-bottom, 0px));
+  max-width: 520px;
+  margin: 0 auto 14px;
+  padding: 10px 0 12px;
   text-align: center;
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   color: var(--muted);
-  font-size: 13px;
-  line-height: 1.7;
+  font-size: 11px;
+  line-height: 1.5;
+  opacity: 0.9;
 }
-.site-footer-links { display: flex; flex-wrap: wrap; gap: 6px 16px; justify-content: center; margin-bottom: 8px; }
+.site-footer-links { display: flex; flex-wrap: wrap; gap: 4px 14px; justify-content: center; margin-bottom: 4px; }
 .site-footer a { color: var(--muted); text-decoration: underline; }
 .site-footer a:hover { color: var(--text); }
 .site-footer-note { margin: 0; }
+
+/* На телефоне ссылки остаются компактными, но каждая доступна для нажатия. */
+@media (max-width: 520px) {
+  .site-footer { padding-left: 2px; padding-right: 2px; }
+  .site-footer-links { gap: 3px 10px; }
+  .site-footer-note { overflow-wrap: anywhere; }
+}
 
 .bottom-nav {
   position: fixed;
