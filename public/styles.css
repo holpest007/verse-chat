@@ -536,6 +536,22 @@ body {
 
 /* Навигация находится в потоке страницы и больше не перекрывает контакты. */
 .app { padding-bottom: 24px; }
+
+/* Нижняя навигация должна быть обычным последним блоком документа.
+   Явно сбрасываем все координаты, чтобы старые правила кеша/темы не могли
+   вернуть панель в фиксированный слой или оставить её в середине экрана. */
+body .app > .bottom-nav {
+  position: static !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  transform: none !important;
+  margin: 24px 0 0 !important;
+  width: 100% !important;
+  max-width: none;
+}
 .nav-tab {
   flex: 1;
   border: none; background: none;
