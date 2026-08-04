@@ -779,28 +779,24 @@ function getAvgRating(id) {
   return { avg: row && row.avg ? row.avg : 0, count: row ? row.n : 0 };
 }
 
-// Полный сброс прогресса: оценки, логи активности, уровни/XP/время/разговоры,
-// достижения, челленджи и все счётчики достижений. Профили пользователей,
-// роли, подписки и жалобы НЕ трогаем.
+// Полная очистка тестовой базы. Каталог достижений не удаляем: это системные
+// данные приложения, а не пользовательская статистика.
 function resetStats() {
   db.exec(`
+    DELETE FROM messages;
+    DELETE FROM reports;
+    DELETE FROM admin_logs;
+    DELETE FROM reactions;
     DELETE FROM ratings;
     DELETE FROM activity_logs;
     DELETE FROM user_stats;
     DELETE FROM user_achievements;
     DELETE FROM challenge_claims;
-    UPDATE users SET
-      convCount = 0,
-      totalDuration = 0,
-      points = 0,
-      level = 1,
-      groupCount = 0,
-      topicCount = 0,
-      photoCount = 0,
-      nightCount = 0,
-      modeVoice = 0,
-      modeVideo = 0,
-      modeText = 0;
+    DELETE FROM users;
+    DELETE FROM sqlite_sequence
+      WHERE name IN ('messages', 'reports', 'admin_logs', 'activity_logs',
+                     'reactions', 'ratings', 'user_stats', 'user_achievements',
+                     'challenge_claims', 'users');
   `);
   return true;
 }

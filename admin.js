@@ -175,13 +175,15 @@ function mount(app, io, providedHooks) {
     }
   });
 
-  // --- Сброс статистики (только главный админ): чистит оценки, логи активности,
-  //     уровни/XP/время/разговоры и достижения. Пользователей и роли НЕ трогает. ---
+  // --- Полная очистка тестовой базы (только главный админ). ---
   app.post('/admin/api/reset-stats', auth, superOnly, (req, res) => {
     try {
       const cleared = db.resetStats();
       analyticsCache.clear(); // сброшенные данные больше не отдаём из кеша
-      db.addAdminLog(req.admin.login, 'reset_stats', '');
+      // Убираем активные тестовые сессии из памяти сервера, чтобы они не
+      // продолжили отправлять события уже после очистки базы.
+      for (const client of io.sockets.sockets.values()) client.disconnect(true);
+      db.addAdminLog(req.admin.login, 'reset_all_test_data', '');
       res.json({ ok: true, cleared });
     } catch (e) {
       res.status(500).json({ ok: false, error: 'Не удалось сбросить статистику' });

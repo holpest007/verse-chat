@@ -235,8 +235,8 @@
 
         <h2 class="section">Опасная зона</h2>
         <div class="table-wrap" id="reset-stats-box" style="padding:16px">
-          <p class="muted" style="margin:0 0 12px">Сброс обнулит у пользователей оценки, время в чате, разговоры, XP/уровни, достижения, челленджи и все счётчики прогресса. Профили пользователей, роли, подписки и жалобы останутся.</p>
-          <button class="btn btn-danger btn-sm" id="reset-stats-btn">Сбросить статистику</button>
+          <p class="muted" style="margin:0 0 12px">Кнопка удалит всех тестовых пользователей, сообщения, жалобы, рейтинги, активность, XP, уровни, достижения и города. Каталог достижений и вход главного администратора сохранятся.</p>
+          <button class="btn btn-danger btn-sm" id="reset-stats-btn">Очистить всю тестовую базу</button>
           <span class="muted" id="reset-stats-msg" style="margin-left:10px"></span>
         </div>
       </div>
@@ -506,25 +506,25 @@
     document.getElementById('an-refresh').addEventListener('click', () => loadAnalytics(true));
     document.getElementById('an-csv').addEventListener('click', anCSV);
 
-    // --- Сброс статистики: двухшаговое подтверждение (без всплывающих окон) ---
+    // --- Полная очистка тестовой базы: двухшаговое подтверждение ---
     let resetArmed = false, resetTimer = null;
     document.getElementById('reset-stats-btn').addEventListener('click', async () => {
       const btn = document.getElementById('reset-stats-btn');
       const msg = document.getElementById('reset-stats-msg');
       if (!resetArmed) {
         resetArmed = true;
-        btn.textContent = 'Точно сбросить? Нажмите ещё раз';
+        btn.textContent = 'Точно удалить всё? Нажмите ещё раз';
         msg.textContent = 'Отмена через 5 секунд';
         resetTimer = setTimeout(() => {
-          resetArmed = false; btn.textContent = 'Сбросить статистику'; msg.textContent = '';
+          resetArmed = false; btn.textContent = 'Очистить всю тестовую базу'; msg.textContent = '';
         }, 5000);
         return;
       }
       clearTimeout(resetTimer); resetArmed = false;
-      btn.textContent = 'Сбросить статистику'; btn.disabled = true; msg.textContent = 'Сброс…';
+      btn.textContent = 'Очистить всю тестовую базу'; btn.disabled = true; msg.textContent = 'Очистка…';
       try {
         await api('/admin/api/reset-stats', { method: 'POST' });
-        msg.textContent = 'Статистика сброшена';
+        msg.textContent = 'Тестовая база очищена';
         loadAnalytics();
         if (typeof loadUsers === 'function') loadUsers();
       } catch (e) {

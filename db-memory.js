@@ -308,26 +308,19 @@ function addRating(fromId, toId, rating) {
   ratings.push({ fromId: fromId || '', toId, rating: r, createdAt: Date.now() });
   return getAvgRating(toId);
 }
-// Полный сброс прогресса (аналог db-sqlite): чистим оценки, логи, ачивки,
-// челленджи и обнуляем все счётчики пользователей. Профили/роли не трогаем.
+// Полная очистка тестовой базы. Каталог достижений системный и находится
+// отдельно, поэтому он не затрагивается.
 function resetStats() {
+  users.clear();
+  reports.length = 0;
+  adminLogs.length = 0;
   ratings.length = 0;
   activityLogs.length = 0;
+  messages.length = 0;
+  reactions.length = 0;
   userAch.clear();
   claims.clear();
-  for (const u of users.values()) {
-    u.convCount = 0;
-    u.totalDuration = 0;
-    u.points = 0;
-    u.level = 1;
-    u.groupCount = 0;
-    u.topicCount = 0;
-    u.photoCount = 0;
-    u.nightCount = 0;
-    u.modeVoice = 0;
-    u.modeVideo = 0;
-    u.modeText = 0;
-  }
+  reportSeq = 1;
   return true;
 }
 
