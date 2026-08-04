@@ -36,10 +36,24 @@ socket.on('banned', () => {
 
 // Конфигурация WebRTC. Подтягиваем ICE-серверы (STUN/TURN) с сервера —
 // на проде TURN задаётся в .env и нужен для звонков между разными сетями.
-const RTC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-fetch('/rtc-config').then((r) => r.json()).then((c) => {
-  if (c && Array.isArray(c.iceServers)) RTC_CONFIG.iceServers = c.iceServers;
-}).catch(() => {});
+const RTC_CONFIG = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ],
+  iceCandidatePoolSize: 10,
+};
+// Дожидаемся TURN/STUN-конфигурации до создания RTCPeerConnection.
+// Раньше звонок мог стартовать раньше fetch('/rtc-config'), из-за чего
+// клиент создавал соединение только со STUN и терялся за NAT/VPN.
+const rtcConfigReady = fetch('/rtc-config', { cache: 'no-store' })
+  .then((r) => r.ok ? r.json() : null)
+  .then((c) => {
+    if (c && Array.isArray(c.iceServers) && c.iceServers.length) {
+      RTC_CONFIG.iceServers = c.iceServers;
+    }
+  })
+  .catch(() => {});
 
 // Города России для поля с поиском по вводу
 const CITIES = [
@@ -311,7 +325,7 @@ let currentMode = null; // 'voice' | 'text' — для модалок жалоб
 // Метки начала разговора (для статистики длительности), в мс. 0 — разговор не идёт
 let voiceCallStart = 0, textChatStart = 0, groupStart = 0, videoCallStart = 0;
 // Состояние переговоров WebRTC (perfect negotiation) для звонка 1-на-1
-let voiceNeg = { polite: false, makingOffer: false, ignoreOffer: false };
+let voiceNeg = { polite: false, makingOffer: false, ignoreOffer: false, pendingCandidates: [] };
 
 async function getMic() {
   if (localStream) return localStream;
@@ -339,14 +353,27 @@ function createVoicePC(peerId) {
   pc.ontrack = (e) => {
     // Голосовой чат — только звук
     const a = $('#voice-audio');
-    a.srcObject = e.streams[0];
+    a.srcObject = e.streams[0] || new MediaStream([e.track]);
     a.muted = false;
     a.playsInline = true;
     // Явно запускаем воспроизведение — на iOS <audio autoplay> сам не играет
-    a.play().catch(() => {});
+    a.play().catch(() => {
+      toast('Нажмите кнопку динамика, чтобы включить звук собеседника');
+    });
   };
   pc.onicecandidate = (e) => {
     if (e.candidate) socket.emit('signal', { to: peerId, data: { candidate: e.candidate } });
+  };
+  pc.oniceconnectionstatechange = () => {
+    if (['failed', 'disconnected'].includes(pc.iceConnectionState)) {
+      console.warn('[voice] ICE-соединение:', pc.iceConnectionState);
+    }
+  };
+  pc.onconnectionstatechange = () => {
+    console.info('[voice] WebRTC-соединение:', pc.connectionState);
+    if (pc.connectionState === 'failed') {
+      toast('Не удалось соединить голосовой канал. Попробуйте начать звонок ещё раз');
+    }
   };
   return pc;
 }
@@ -355,6 +382,7 @@ function createVoicePC(peerId) {
 async function startVoiceSearch() {
   try { await getMic(); }
   catch (err) { toast('Нет доступа к микрофону'); return; }
+  await rtcConfigReady;
   const f = getFilters('voice');
   $('#voice-search-info').innerHTML =
     `<span class="sline"><span class="cflag">${RF_FLAG}</span> Российская Федерация</span><span class="sline">${ageRangeText(f.ages)}</span>`;
@@ -432,7 +460,8 @@ async function proceedVoiceMatch({ peerId, initiator, partner }) {
   currentMode = 'voice';
   ratablePartner = true; // после разговора можно оценить собеседника
   // Инициатор шлёт первый offer → он «невежливый»; собеседник «вежливый»
-  voiceNeg = { polite: !initiator, makingOffer: false, ignoreOffer: false };
+  voiceNeg = { polite: !initiator, makingOffer: false, ignoreOffer: false, pendingCandidates: [] };
+  await rtcConfigReady;
   voicePC = createVoicePC(peerId);
   stopTimer('voiceSearch');
   $('#voice-peer-name').textContent = 'Разговор с ' + (partner.nick || 'собеседником');
@@ -490,9 +519,22 @@ socket.on('signal', async ({ from, data }) => {
         await pc.setLocalDescription(answer);
         socket.emit('signal', { to: from, data: { sdp: pc.localDescription } });
       }
+      // Кандидаты иногда приходят вместе с SDP или раньше него. Добавляем
+      // накопленные кандидаты только после установки remoteDescription.
+      if (neg.pendingCandidates && neg.pendingCandidates.length) {
+        const pending = neg.pendingCandidates.splice(0);
+        for (const candidate of pending) {
+          try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) {}
+        }
+      }
     } else if (data.candidate) {
-      try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); }
-      catch (e) { if (!neg.ignoreOffer) { /* игнорируем гонки кандидатов */ } }
+      if (!pc.remoteDescription) {
+        neg.pendingCandidates = neg.pendingCandidates || [];
+        neg.pendingCandidates.push(data.candidate);
+      } else {
+        try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); }
+        catch (e) { if (!neg.ignoreOffer) { /* игнорируем гонки кандидатов */ } }
+      }
     }
   } catch (e) { /* переговоры прервались — молча пропускаем */ }
 });
