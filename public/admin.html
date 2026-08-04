@@ -234,7 +234,7 @@
         </div>
 
         <h2 class="section">Опасная зона</h2>
-        <div class="table-wrap" style="padding:16px">
+        <div class="table-wrap" id="reset-stats-box" style="padding:16px">
           <p class="muted" style="margin:0 0 12px">Сброс обнулит оценки, время в чате, разговоры, XP/уровни, достижения и логи активности. Пользователи, роли и подписки останутся.</p>
           <button class="btn btn-danger btn-sm" id="reset-stats-btn">Сбросить статистику</button>
           <span class="muted" id="reset-stats-msg" style="margin-left:10px"></span>
@@ -368,6 +368,7 @@
       document.getElementById('who').textContent = loginName + ' · ' + role;
       // Раздел «Администраторы»: форма назначения только для главного админа
       document.getElementById('assign-box').style.display = role === 'superAdmin' ? 'flex' : 'none';
+      document.getElementById('reset-stats-box').style.display = role === 'superAdmin' ? 'block' : 'none';
       loadView('dash');
     }
 
