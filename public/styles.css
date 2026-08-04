@@ -67,10 +67,9 @@ body {
 }
 
 .app {
-  display: flex;
-  flex-direction: column;
+  display: block;
 }
-.app > .content { flex: 1 0 auto; width: 100%; }
+.app > .content { display: block; width: 100%; }
 
 /* ---------- Верхняя панель ---------- */
 .topbar {
