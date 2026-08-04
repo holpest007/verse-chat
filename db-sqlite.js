@@ -779,8 +779,9 @@ function getAvgRating(id) {
   return { avg: row && row.avg ? row.avg : 0, count: row ? row.n : 0 };
 }
 
-// Полный сброс статистики: оценки, логи активности, уровни/XP/время/разговоры,
-// достижения и челленджи. Пользователей, роли, подписки и жалобы НЕ трогаем.
+// Полный сброс прогресса: оценки, логи активности, уровни/XP/время/разговоры,
+// достижения, челленджи и все счётчики достижений. Профили пользователей,
+// роли, подписки и жалобы НЕ трогаем.
 function resetStats() {
   db.exec(`
     DELETE FROM ratings;
@@ -788,7 +789,18 @@ function resetStats() {
     DELETE FROM user_stats;
     DELETE FROM user_achievements;
     DELETE FROM challenge_claims;
-    UPDATE users SET convCount = 0, totalDuration = 0, points = 0, level = 1;
+    UPDATE users SET
+      convCount = 0,
+      totalDuration = 0,
+      points = 0,
+      level = 1,
+      groupCount = 0,
+      topicCount = 0,
+      photoCount = 0,
+      nightCount = 0,
+      modeVoice = 0,
+      modeVideo = 0,
+      modeText = 0;
   `);
   return true;
 }
