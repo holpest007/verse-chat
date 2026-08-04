@@ -513,10 +513,11 @@ body {
 }
 
 .bottom-nav {
-  position: fixed !important;
-  left: 50%; right: auto; bottom: 0;
-  transform: translateX(-50%) translateZ(0);
-  width: min(100vw, 520px); max-width: 520px;
+  position: relative !important;
+  left: auto; right: auto; bottom: auto;
+  transform: none;
+  width: 100%; max-width: 520px;
+  margin: 24px auto 0;
   min-height: 76px;
   display: flex;
   justify-content: space-around;
@@ -524,9 +525,11 @@ body {
   backdrop-filter: blur(12px);
   border-top: 1px solid var(--border);
   padding: 10px 8px calc(10px + env(safe-area-inset-bottom, 0px));
-  z-index: 1000;
-  will-change: transform;
+  z-index: 10;
 }
+
+/* Навигация находится в потоке страницы и больше не перекрывает контакты. */
+.app { padding-bottom: 24px; }
 .nav-tab {
   flex: 1;
   border: none; background: none;
@@ -1206,7 +1209,7 @@ a.s-row, a.s-row:hover { text-decoration: none; }
 /* ---------- Десктоп: чуть шире и по центру ---------- */
 @media (min-width: 640px) {
   .app { max-width: 520px; }
-  .bottom-nav { width: min(100vw, 520px); border-radius: 20px 20px 0 0; }
+  .bottom-nav { width: 100%; border-radius: 20px; }
 }
 
 /* ==========================================================================
