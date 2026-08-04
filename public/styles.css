@@ -452,10 +452,10 @@ body {
    Нижний отступ — чтобы фиксированная навигация не перекрывала текст. */
 .site-footer {
   max-width: 520px;
-  margin: 0 auto 14px;
-  padding: 10px 0 12px;
+  margin: 18px auto 0;
+  padding: 14px 0 16px;
   text-align: center;
-  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
   color: var(--muted);
   font-size: 11px;
   line-height: 1.5;
