@@ -67,9 +67,11 @@ body {
 }
 
 .app {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
 }
-.app > .content { display: block; width: 100%; }
+.app > .content { flex: 1 0 auto; width: 100%; }
 
 /* ---------- Верхняя панель ---------- */
 .topbar {
@@ -518,11 +520,10 @@ body {
 }
 
 .bottom-nav {
-  position: relative !important;
-  left: auto; right: auto; bottom: auto;
+  position: static !important;
   transform: none;
   width: 100%; max-width: 520px;
-  margin: auto auto 0;
+  margin: auto 0 0;
   min-height: 76px;
   display: flex;
   justify-content: space-around;
@@ -530,24 +531,16 @@ body {
   backdrop-filter: blur(12px);
   border-top: 1px solid var(--border);
   padding: 10px 8px calc(10px + env(safe-area-inset-bottom, 0px));
-  z-index: 10;
 }
 
 /* Навигация находится в потоке страницы и больше не перекрывает контакты. */
-.app { padding-bottom: 24px; }
+.app { padding-bottom: 0; }
 
-/* Нижняя навигация должна быть обычным последним блоком документа.
-   Явно сбрасываем все координаты, чтобы старые правила кеша/темы не могли
-   вернуть панель в фиксированный слой или оставить её в середине экрана. */
+/* Гарантируем обычный поток страницы даже при старом стиле в кеше Safari. */
 body .app > .bottom-nav {
   position: static !important;
-  inset: auto !important;
-  top: auto !important;
-  right: auto !important;
-  bottom: auto !important;
-  left: auto !important;
   transform: none !important;
-  margin: 24px 0 0 !important;
+  margin: auto 0 0 !important;
   width: 100% !important;
   max-width: none;
 }
