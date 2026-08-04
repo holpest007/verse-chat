@@ -42,6 +42,12 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* На iOS прокрутка должна принадлежать всей странице, а не внутреннему
+   контейнеру. Это не даёт Safari «запереть» нижнюю навигацию на экране. */
+html, body, .app, .content {
+  overflow: visible;
+}
+
 body {
   margin: 0;
   /* Системный шрифт (SF Pro на iOS, Roboto на Android, Segoe на Windows) —
