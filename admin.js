@@ -89,6 +89,19 @@ function superOnly(req, res, next) {
 function mount(app, io, providedHooks) {
   if (providedHooks) hooks = providedHooks;
 
+  // В админке используем тот же принцип, что и на главной странице:
+  // несколько вкладок/сессий с одного IP считаются одним активным устройством.
+  function onlineDeviceCount() {
+    const devices = new Set();
+    for (const socket of io.sockets.sockets.values()) {
+      const ip = socket.data && socket.data.clientIp;
+      const uuid = socket.data && socket.data.uuid;
+      if (ip) devices.add('ip:' + ip);
+      else if (uuid) devices.add('uuid:' + uuid);
+    }
+    return devices.size;
+  }
+
   // --- Вход: проверка логина/пароля, выдача JWT ---
   app.post('/admin/api/login', (req, res) => {
     const { login, password } = req.body || {};
@@ -104,7 +117,7 @@ function mount(app, io, providedHooks) {
   // --- Дашборд: общая статистика ---
   app.get('/admin/api/stats', auth, (req, res) => {
     const stats = db.getStats();
-    stats.online = io.engine.clientsCount || 0; // активные подключения прямо сейчас
+    stats.online = onlineDeviceCount(); // уникальные активные устройства
     res.json(stats);
   });
 
@@ -161,7 +174,7 @@ function mount(app, io, providedHooks) {
     const fresh = req.query.fresh === '1';
     const key = from + '|' + to;
     // «Онлайн сейчас» считаем свежим на каждый ответ (не кешируем)
-    const respond = (data, cachedFlag) => res.json({ ...data, online: io.engine.clientsCount || 0, cached: !!cachedFlag });
+    const respond = (data, cachedFlag) => res.json({ ...data, online: onlineDeviceCount(), cached: !!cachedFlag });
     try {
       const cached = analyticsCache.get(key);
       if (!fresh && cached && (Date.now() - cached.t) < ANALYTICS_TTL) {

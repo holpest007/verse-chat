@@ -272,6 +272,20 @@ function premAccess(u) {
 //   mode: null | 'voice' | 'text' | 'group'
 const users = new Map();
 
+// Возвращает адрес клиента с учётом reverse-proxy. Он нужен только для
+// подсчёта уникальных активных устройств, а не для склеивания профилей:
+// несколько людей в одной Wi‑Fi сети должны оставаться разными пользователями.
+function getClientIp(socket) {
+  const forwarded = socket.handshake.headers && socket.handshake.headers['x-forwarded-for'];
+  const value = String(forwarded || socket.handshake.address || '').split(',')[0].trim();
+  if (!value) return '';
+  return value.replace(/^::ffff:/i, '');
+}
+
+function normalizeDeviceId(value) {
+  return String(value || '').trim().slice(0, 128);
+}
+
 // Очереди ожидания подбора собеседника (хранят socket.id)
 const voiceQueue = []; // ждут голосового собеседника
 const textQueue = [];  // ждут текстового собеседника
@@ -409,8 +423,14 @@ function broadcastCounts() {
   // Общее число онлайн — по числу подключённых пользователей (кроме «невидимок»).
   // users содержит по записи на каждый активный сокет (добавляется при connect,
   // удаляется при disconnect) — это надёжнее, чем engine.clientsCount.
-  let online = 0;
-  for (const u of users.values()) if (!u.invisible) online++;
+  const onlineDevices = new Set();
+  for (const u of users.values()) {
+    if (u.invisible) continue;
+    // IP — единица подсчёта активного устройства. UUID оставляем fallback
+    // для локальной разработки и случаев, когда прокси не передал адрес.
+    onlineDevices.add(u.clientIp ? `ip:${u.clientIp}` : `uuid:${u.uuid}`);
+  }
+  const online = onlineDevices.size;
   io.emit('counts', { online });
 }
 
@@ -511,8 +531,19 @@ function awardCheck(socket, uuid) {
 io.on('connection', (socket) => {
   // Постоянный анонимный идентификатор пользователя приходит с клиента (localStorage).
   // По нему загружаем/создаём запись в БД — так профиль, подписка и роль сохраняются.
-  const uuid = String(socket.handshake.auth?.uuid || '').slice(0, 64) || 'anon-' + socket.id;
+  const uuid = normalizeDeviceId(socket.handshake.auth?.uuid) || 'anon-' + socket.id;
+  const clientIp = getClientIp(socket);
+
+  // Одна вкладка/сессия на один сохранённый device UUID. Это предотвращает
+  // появление дублей при переподключении и открытии сайта в нескольких вкладках.
+  for (const [activeId, activeSocket] of io.sockets.sockets) {
+    if (activeId !== socket.id && activeSocket.data && activeSocket.data.uuid === uuid) {
+      activeSocket.emit('session:replaced');
+      activeSocket.disconnect(true);
+    }
+  }
   socket.data.uuid = uuid;
+  socket.data.clientIp = clientIp;
   // Загрузка из БД защищена: даже если БД недоступна, соединение и все
   // обработчики событий всё равно регистрируются, и чат/группы работают.
   let record = {};
@@ -531,6 +562,7 @@ io.on('connection', (socket) => {
   // Данные пользователя в памяти (для быстрого подбора) + постоянные поля из БД
   users.set(socket.id, {
     uuid,
+    clientIp,
     gender: record.gender || pick(['female', 'male']),
     age: numToBucket(record.age),    // корзина возраста для подбора
     ageExact: record.age || null,    // точный возраст (число) из профиля
