@@ -1163,6 +1163,10 @@ $('#open-settings').addEventListener('click', () => {
   showSettingsView('main');
   $('#settings').classList.remove('hidden');
 });
+$('#open-profile').addEventListener('click', () => {
+  showSettingsView('profile');
+  $('#settings').classList.remove('hidden');
+});
 document.querySelectorAll('[data-close-settings]').forEach((b) =>
   b.addEventListener('click', () => $('#settings').classList.add('hidden'))
 );

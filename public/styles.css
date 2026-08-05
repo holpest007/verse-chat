@@ -1008,6 +1008,7 @@ body .app > .bottom-nav {
 .settings-head:not(:has(.s-edit))::after { content: ''; width: 40px; }
 
 .settings-body { display: flex; flex-direction: column; gap: 14px; }
+.settings-body > [data-open="profile"] { display: none; }
 
 /* Строка настроек */
 .s-row {

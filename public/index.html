@@ -43,7 +43,7 @@
   </script>
 
   <!-- Основные стили (свой сервер) -->
-  <link rel="stylesheet" href="styles.css?v=navflow9" />
+  <link rel="stylesheet" href="styles.css?v=navflow10" />
   <!-- Иконки FontAwesome — свой сервер, грузим асинхронно, чтобы не блокировать
        отрисовку страницы на медленном канале. Всё локально, без внешних CDN. -->
   <link rel="stylesheet" href="/fa/css/all.min.css" media="print" onload="this.media='all'" />
@@ -57,8 +57,9 @@
         <span class="logo-badge" aria-hidden="true"><span class="logo-v">V</span></span>
         <span class="logo-word"><span class="logo-name">erse</span><span class="logo-team">TEAM</span></span>
       </div>
-      <div class="top-actions">
-        <button class="icon-btn" id="open-settings" title="Настройки"><i class="fa-solid fa-gear"></i></button>
+        <div class="top-actions">
+          <button class="icon-btn" id="open-profile" title="Профиль" aria-label="Открыть профиль"><i class="fa-solid fa-user"></i></button>
+          <button class="icon-btn" id="open-settings" title="Настройки"><i class="fa-solid fa-gear"></i></button>
       </div>
     </header>
 
@@ -1108,6 +1109,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="app.js?v=navflow9"></script>
+  <script src="app.js?v=navflow10"></script>
 </body>
 </html>
