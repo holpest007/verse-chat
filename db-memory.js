@@ -12,6 +12,16 @@ const messages = [];          // история сообщений
 const reactions = [];         // реакции на сообщения
 let reportSeq = 1;
 
+const accounts = new Map();
+function getAccountByEmail(email) { const e = String(email || '').trim().toLowerCase(); return [...accounts.values()].find((a) => a.email === e); }
+function getAccountByUserId(userId) { return [...accounts.values()].find((a) => a.user_id === userId); }
+function getAccountById(id) { return accounts.get(id); }
+function getAccountByReset(hash, now) { return [...accounts.values()].find((a) => a.reset_hash === hash && a.reset_expires > (now || Date.now())); }
+function createAccount(data) { const account = { id: data.id, user_id: data.userId, email: data.email, password_hash: data.passwordHash, password_salt: data.passwordSalt, reset_hash: '', reset_expires: 0 }; accounts.set(account.id, account); return account; }
+function markAccountLogin() {}
+function setAccountResetToken(id, hash, expires) { const a = accounts.get(id); if (a) { a.reset_hash = hash; a.reset_expires = expires; } }
+function updateAccountPassword(id, hash, salt) { const a = accounts.get(id); if (a) { a.password_hash = hash; a.password_salt = salt; a.reset_hash = ''; a.reset_expires = 0; } }
+
 function defaultUser(id) {
   const now = Date.now();
   return {
@@ -378,7 +388,7 @@ function getAnalytics(fromMs, toMs) {
 
 module.exports = {
   db: null,
-  getOrCreateUser, getUser, getUserByNick, saveProfile, setSubscription, activePlan,
+  getOrCreateUser, getUser, getUserByNick, getAccountByEmail, getAccountByUserId, getAccountById, getAccountByReset, createAccount, markAccountLogin, setAccountResetToken, updateAccountPassword, saveProfile, setSubscription, activePlan,
   banUser, setRole, touch, addReport, addAdminLog, addActivity, addMessage, getMessages,
   pruneMessages, recordConversation, getUserStats, addXp, checkAchievements, getAchievements,
   getLeaderboard, getChallenges, claimChallenge, getFullStats, addReaction, getReactions, getAnalytics, getStats,

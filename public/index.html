@@ -782,6 +782,45 @@
     </div>
 
     <!-- ============ ОВЕРЛЕЙ «НАСТРОЙКИ» ============ -->
+    <div class="settings-overlay hidden" id="auth-overlay">
+      <div class="settings-view active" id="auth-view">
+        <div class="settings-head">
+          <button class="s-back" id="auth-close"><i class="fa-solid fa-xmark"></i></button>
+          <h2 id="auth-title">Вход в аккаунт</h2>
+        </div>
+        <div class="settings-body">
+          <form id="auth-login-form">
+            <label class="s-field"><span class="s-field-label">Ник или почта</span><input class="s-input" id="auth-login" required autocomplete="username"></label>
+            <label class="s-field"><span class="s-field-label">Пароль</span><input class="s-input" id="auth-login-password" type="password" required autocomplete="current-password"></label>
+            <p class="s-hint" id="auth-login-hint"></p>
+            <button class="btn btn-primary btn-big" type="submit">Войти</button>
+            <button class="btn btn-ghost btn-big" type="button" id="auth-show-register">Создать аккаунт</button>
+            <button class="btn btn-link btn-big" type="button" id="auth-show-forgot">Забыли пароль?</button>
+          </form>
+          <form id="auth-register-form" class="hidden">
+            <label class="s-field"><span class="s-field-label">Ник</span><input class="s-input" id="auth-register-nick" maxlength="20" required autocomplete="nickname"></label>
+            <label class="s-field"><span class="s-field-label">Почта</span><input class="s-input" id="auth-register-email" type="email" required autocomplete="email"></label>
+            <label class="s-field"><span class="s-field-label">Пароль</span><input class="s-input" id="auth-register-password" type="password" minlength="8" required autocomplete="new-password"></label>
+            <p class="s-hint" id="auth-register-hint"></p>
+            <button class="btn btn-primary btn-big" type="submit">Зарегистрироваться</button>
+            <button class="btn btn-ghost btn-big" type="button" id="auth-show-login">Уже есть аккаунт</button>
+          </form>
+          <form id="auth-forgot-form" class="hidden">
+            <p class="s-hint">Введите почту — мы отправим ссылку для установки нового пароля.</p>
+            <label class="s-field"><span class="s-field-label">Почта</span><input class="s-input" id="auth-forgot-email" type="email" required autocomplete="email"></label>
+            <p class="s-hint" id="auth-forgot-hint"></p>
+            <button class="btn btn-primary btn-big" type="submit">Отправить ссылку</button>
+            <button class="btn btn-ghost btn-big" type="button" id="auth-forgot-back">Назад ко входу</button>
+          </form>
+          <form id="auth-reset-form" class="hidden">
+            <label class="s-field"><span class="s-field-label">Новый пароль</span><input class="s-input" id="auth-reset-password" type="password" minlength="8" required autocomplete="new-password"></label>
+            <p class="s-hint" id="auth-reset-hint"></p>
+            <button class="btn btn-primary btn-big" type="submit">Сохранить пароль</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
     <div class="settings-overlay hidden" id="settings">
 
       <!-- Экран: Настройки (главный список) -->
@@ -859,6 +898,11 @@
           <button class="s-edit" id="profile-edit" title="Редактировать"><i class="fa-solid fa-pen"></i></button>
         </div>
         <div class="settings-body">
+          <div class="account-card" id="account-card">
+            <div class="account-status" id="account-status">Профиль без аккаунта</div>
+            <button class="btn btn-primary btn-big" id="account-open-auth">Войти или зарегистрироваться</button>
+            <button class="btn btn-ghost btn-big hidden" id="account-logout">Выйти из аккаунта</button>
+          </div>
           <label class="s-field">
             <span class="s-field-label">Введите никнейм</span>
             <input type="text" id="pf-nick" class="s-input" placeholder="Ваш ник" maxlength="20" />

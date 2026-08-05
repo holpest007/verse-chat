@@ -9,7 +9,7 @@
 // Постоянный анонимный идентификатор пользователя (хранится локально).
 // По нему сервер узнаёт нас между сессиями: профиль, подписка, роль.
 function getUUID() {
-  let id = localStorage.getItem('vt_uuid');
+  let id = localStorage.getItem('vt_account_user_id') || localStorage.getItem('vt_uuid');
   if (!id) {
     id = (crypto.randomUUID && crypto.randomUUID()) ||
       ('u-' + Date.now() + '-' + Math.random().toString(36).slice(2));
@@ -19,7 +19,7 @@ function getUUID() {
 }
 
 // Подключаемся к серверу, передавая свой UUID
-const socket = io({ auth: { uuid: getUUID() } });
+const socket = io({ auth: { uuid: getUUID(), accountToken: localStorage.getItem('vt_account_token') || '' } });
 
 // Текущая подписка и роль пользователя (обновляются сервером через событие 'me')
 let myPlan = 'free';
@@ -1159,6 +1159,37 @@ $('#do-block').addEventListener('click', () => {
 // ==========================================================================
 
 // ---- Открытие / закрытие оверлея настроек ----
+// ---- Аккаунт: регистрация, вход и восстановление пароля ----
+const authOverlay = $('#auth-overlay');
+const authForms = ['auth-login-form', 'auth-register-form', 'auth-forgot-form', 'auth-reset-form'].map((id) => $('#' + id));
+function showAuthForm(name, title) {
+  authForms.forEach((form) => form.classList.toggle('hidden', form.id !== `auth-${name}-form`));
+  $('#auth-title').textContent = title;
+  authOverlay.classList.remove('hidden');
+}
+function authError(form, message) { const el = $(`#auth-${form}-hint`); if (el) el.textContent = message || ''; }
+function setAccountUi(account) {
+  const status = $('#account-status'); const open = $('#account-open-auth'); const logout = $('#account-logout');
+  if (account) { status.textContent = `Аккаунт: ${account.nick} (${account.email})`; open.classList.add('hidden'); logout.classList.remove('hidden'); }
+  else { status.textContent = 'Профиль без аккаунта'; open.classList.remove('hidden'); logout.classList.add('hidden'); }
+}
+async function finishAuth(data) {
+  localStorage.setItem('vt_account_token', data.token); localStorage.setItem('vt_account_user_id', data.account.userId); localStorage.setItem('vt_uuid', data.account.userId); location.reload();
+}
+$('#account-open-auth').addEventListener('click', () => showAuthForm('login', 'Вход в аккаунт'));
+$('#auth-close').addEventListener('click', () => authOverlay.classList.add('hidden'));
+$('#auth-show-register').addEventListener('click', () => showAuthForm('register', 'Регистрация'));
+$('#auth-show-login').addEventListener('click', () => showAuthForm('login', 'Вход в аккаунт'));
+$('#auth-show-forgot').addEventListener('click', () => showAuthForm('forgot', 'Восстановление пароля'));
+$('#auth-forgot-back').addEventListener('click', () => showAuthForm('login', 'Вход в аккаунт'));
+$('#auth-register-form').addEventListener('submit', async (e) => { e.preventDefault(); authError('register', ''); const r = await fetch('/api/auth/register', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ nick: $('#auth-register-nick').value, email: $('#auth-register-email').value, password: $('#auth-register-password').value, uuid: getUUID() }) }); const data = await r.json(); if (!r.ok) return authError('register', data.error); finishAuth(data); });
+$('#auth-login-form').addEventListener('submit', async (e) => { e.preventDefault(); authError('login', ''); const r = await fetch('/api/auth/login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ login: $('#auth-login').value, password: $('#auth-login-password').value }) }); const data = await r.json(); if (!r.ok) return authError('login', data.error); finishAuth(data); });
+$('#auth-forgot-form').addEventListener('submit', async (e) => { e.preventDefault(); const r = await fetch('/api/auth/forgot', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ email: $('#auth-forgot-email').value }) }); const data = await r.json(); authError('forgot', data.message || data.error); });
+$('#auth-reset-form').addEventListener('submit', async (e) => { e.preventDefault(); const r = await fetch('/api/auth/reset', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ token: new URLSearchParams(location.search).get('reset'), password: $('#auth-reset-password').value }) }); const data = await r.json(); if (!r.ok) return authError('reset', data.error); authError('reset', data.message); setTimeout(() => showAuthForm('login', 'Вход в аккаунт'), 1200); });
+$('#account-logout').addEventListener('click', () => { localStorage.removeItem('vt_account_token'); localStorage.removeItem('vt_account_user_id'); location.reload(); });
+if (new URLSearchParams(location.search).has('reset')) showAuthForm('reset', 'Новый пароль');
+fetch('/api/auth/me', { headers: { Authorization: `Bearer ${localStorage.getItem('vt_account_token') || ''}` } }).then((r) => r.ok ? r.json() : null).then((data) => setAccountUi(data && data.account)).catch(() => setAccountUi(null));
+
 $('#open-settings').addEventListener('click', () => {
   showSettingsView('main');
   $('#settings').classList.remove('hidden');

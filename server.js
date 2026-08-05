@@ -13,6 +13,9 @@ const express = require('express');
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
 const { Server } = require('socket.io');
 const db = require('./db');           // слой базы данных (SQLite)
 const admin = require('./admin');     // маршруты и логика админ-панели
@@ -33,6 +36,53 @@ const SITE_URL = (process.env.SITE_URL || 'https://verse-team.ru').replace(/\/+$
 const CONTACT_EMAIL = process.env.CONTACT_EMAIL || 'support@verse-team.ru';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@verse-team.ru';
 const OWNER_NAME = process.env.OWNER_NAME || 'Verse Team';
+const AUTH_SECRET = process.env.JWT_SECRET || 'change-this-auth-secret';
+const RESET_TTL = 30 * 60 * 1000;
+
+function normalizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+function hashPassword(password, salt) {
+  return crypto.scryptSync(String(password), salt, 64).toString('hex');
+}
+function makePassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  return { salt, hash: hashPassword(password, salt) };
+}
+function passwordMatches(password, account) {
+  const actual = hashPassword(password, account.password_salt);
+  return crypto.timingSafeEqual(Buffer.from(actual, 'hex'), Buffer.from(account.password_hash, 'hex'));
+}
+function issueAccountToken(account) {
+  return jwt.sign({ accountId: account.id, userId: account.user_id }, AUTH_SECRET, { expiresIn: '30d' });
+}
+function accountResponse(account) {
+  const user = db.getUser(account.user_id) || {};
+  return { id: account.id, userId: account.user_id, email: account.email, nick: user.nick || '' };
+}
+function smtpTransport() {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) return null;
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 465),
+    secure: String(process.env.SMTP_SECURE || 'true') !== 'false',
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  });
+}
+async function sendResetEmail(email, link) {
+  const transport = smtpTransport();
+  if (!transport) {
+    console.warn('[auth] SMTP is not configured. Password reset link:', link);
+    return;
+  }
+  await transport.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: email,
+    subject: 'Сброс пароля Verse Team',
+    text: `Чтобы установить новый пароль, откройте ссылку: ${link}\nСсылка действует 30 минут.`,
+    html: `<p>Чтобы установить новый пароль, нажмите кнопку:</p><p><a href="${link}">Установить новый пароль</a></p><p>Ссылка действует 30 минут.</p>`,
+  });
+}
 
 // Доверяем заголовкам обратного прокси (Nginx) — тогда req.secure учитывает
 // X-Forwarded-Proto, если прокси его передаёт.
@@ -175,6 +225,74 @@ app.get('/contacts', (req, res) => {
 });
 
 // Раздаём статику (index.html, styles.css, app.js) из папки public
+app.post('/api/auth/register', (req, res) => {
+  const nick = String(req.body.nick || '').trim();
+  const email = normalizeEmail(req.body.email);
+  const password = String(req.body.password || '');
+  const userId = normalizeDeviceId(req.body.uuid) || crypto.randomUUID();
+  if (!/^[\\p{L}0-9_ .-]{2,20}$/u.test(nick)) return res.status(400).json({ ok: false, error: 'Некорректный ник' });
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return res.status(400).json({ ok: false, error: 'Некорректная почта' });
+  if (password.length < 8) return res.status(400).json({ ok: false, error: 'Пароль должен быть не короче 8 символов' });
+  if (db.getAccountByEmail(email)) return res.status(409).json({ ok: false, error: 'Эта почта уже зарегистрирована' });
+  const existingNick = db.getUserByNick(nick);
+  if (existingNick && db.getAccountByUserId(existingNick.id)) return res.status(409).json({ ok: false, error: 'Этот ник уже занят' });
+  const user = db.getOrCreateUser(userId);
+  if (user.nick && user.nick.toLowerCase() !== nick.toLowerCase() && db.getUserByNick(nick)) {
+    return res.status(409).json({ ok: false, error: 'Этот ник уже занят' });
+  }
+  const secure = makePassword(password);
+  const account = db.createAccount({ id: crypto.randomUUID(), userId, email, passwordHash: secure.hash, passwordSalt: secure.salt });
+  db.saveProfile(userId, { ...user, nick });
+  const token = issueAccountToken(account);
+  res.json({ ok: true, token, account: accountResponse(account) });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const login = String(req.body.login || '').trim();
+  const password = String(req.body.password || '');
+  let account = db.getAccountByEmail(normalizeEmail(login));
+  if (!account) {
+    const user = db.getUserByNick(login);
+    account = user ? db.getAccountByUserId(user.id) : null;
+  }
+  if (!account || !passwordMatches(password, account)) return res.status(401).json({ ok: false, error: 'Неверный ник, почта или пароль' });
+  db.markAccountLogin(account.id);
+  res.json({ ok: true, token: issueAccountToken(account), account: accountResponse(account) });
+});
+
+app.get('/api/auth/me', (req, res) => {
+  try {
+    const payload = jwt.verify(String(req.headers.authorization || '').replace(/^Bearer\\s+/i, ''), AUTH_SECRET);
+    const account = db.getAccountById(payload.accountId);
+    if (!account || account.user_id !== payload.userId) throw new Error('invalid');
+    res.json({ ok: true, account: accountResponse(account) });
+  } catch { res.status(401).json({ ok: false }); }
+});
+
+app.post('/api/auth/forgot', async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+  const account = db.getAccountByEmail(email);
+  if (account) {
+    const raw = crypto.randomBytes(32).toString('hex');
+    db.setAccountResetToken(account.id, crypto.createHash('sha256').update(raw).digest('hex'), Date.now() + RESET_TTL);
+    const link = `${SITE_URL}/?reset=${raw}`;
+    try { await sendResetEmail(email, link); } catch (e) { console.error('[auth] reset email failed:', e.message); }
+  }
+  res.json({ ok: true, message: 'Если почта зарегистрирована, ссылка для сброса отправлена.' });
+});
+
+app.post('/api/auth/reset', (req, res) => {
+  const token = String(req.body.token || '');
+  const password = String(req.body.password || '');
+  if (password.length < 8) return res.status(400).json({ ok: false, error: 'Пароль должен быть не короче 8 символов' });
+  const hash = crypto.createHash('sha256').update(token).digest('hex');
+  const account = db.getAccountByReset(hash, Date.now());
+  if (!account) return res.status(400).json({ ok: false, error: 'Ссылка недействительна или устарела' });
+  const secure = makePassword(password);
+  db.updateAccountPassword(account.id, secure.hash, secure.salt);
+  res.json({ ok: true, message: 'Пароль изменён. Теперь можно войти.' });
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Папка для загруженных фото (создаём при старте, если ещё нет)
@@ -531,7 +649,13 @@ function awardCheck(socket, uuid) {
 io.on('connection', (socket) => {
   // Постоянный анонимный идентификатор пользователя приходит с клиента (localStorage).
   // По нему загружаем/создаём запись в БД — так профиль, подписка и роль сохраняются.
-  const uuid = normalizeDeviceId(socket.handshake.auth?.uuid) || 'anon-' + socket.id;
+  let accountFromToken = null;
+  try {
+    const payload = jwt.verify(String(socket.handshake.auth?.accountToken || ''), AUTH_SECRET);
+    const account = db.getAccountById(payload.accountId);
+    if (account && account.user_id === payload.userId) accountFromToken = account;
+  } catch {}
+  const uuid = accountFromToken?.user_id || normalizeDeviceId(socket.handshake.auth?.uuid) || 'anon-' + socket.id;
   const clientIp = getClientIp(socket);
 
   // Одна вкладка/сессия на один сохранённый device UUID. Это предотвращает

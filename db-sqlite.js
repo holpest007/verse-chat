@@ -38,6 +38,19 @@ db.exec(`
   );
 
   -- История сообщений (для премиум-истории переписки)
+  CREATE TABLE IF NOT EXISTS accounts (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL UNIQUE,
+    email           TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    password_hash   TEXT NOT NULL,
+    password_salt   TEXT NOT NULL,
+    reset_hash      TEXT DEFAULT '',
+    reset_expires   INTEGER DEFAULT 0,
+    created_at      INTEGER NOT NULL,
+    last_login      INTEGER DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email COLLATE NOCASE);
+
   CREATE TABLE IF NOT EXISTS messages (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     userId    TEXT,                            -- владелец записи (чью историю)
@@ -352,6 +365,19 @@ const stmts = {
   newUsersInRange: db.prepare('SELECT COUNT(*) AS n FROM users WHERE createdAt >= ? AND createdAt <= ?'),
   ratingsInRange: db.prepare('SELECT rating, created_at FROM ratings WHERE created_at >= ? AND created_at <= ?'),
   avgRatingAll: db.prepare('SELECT ROUND(AVG(rating), 2) AS avg, COUNT(*) AS n FROM ratings'),
+  getAccountByEmail: db.prepare('SELECT * FROM accounts WHERE email = ? COLLATE NOCASE'),
+  getAccountByUserId: db.prepare('SELECT * FROM accounts WHERE user_id = ?'),
+  getAccountById: db.prepare('SELECT * FROM accounts WHERE id = ?'),
+  getAccountByReset: db.prepare('SELECT * FROM accounts WHERE reset_hash = ? AND reset_expires > ?'),
+  insertAccount: db.prepare(
+    `INSERT INTO accounts (id, user_id, email, password_hash, password_salt, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ),
+  updateAccountLogin: db.prepare('UPDATE accounts SET last_login = ? WHERE id = ?'),
+  updateAccountPassword: db.prepare(
+    "UPDATE accounts SET password_hash = ?, password_salt = ?, reset_hash = '', reset_expires = 0 WHERE id = ?"
+  ),
+  setResetToken: db.prepare('UPDATE accounts SET reset_hash = ?, reset_expires = ? WHERE id = ?'),
 };
 
 // Инкременты счётчиков достижений (mode-колонки — установка флага в 1)
@@ -386,6 +412,39 @@ function getUser(id) {
 
 function getUserByNick(nick) {
   return stmts.getUserByNick.get(nick);
+}
+
+function getAccountByEmail(email) {
+  return stmts.getAccountByEmail.get(String(email || '').trim().toLowerCase());
+}
+
+function getAccountByUserId(userId) {
+  return stmts.getAccountByUserId.get(String(userId || ''));
+}
+
+function getAccountById(id) {
+  return stmts.getAccountById.get(String(id || ''));
+}
+
+function getAccountByReset(hash, now) {
+  return stmts.getAccountByReset.get(String(hash || ''), now || Date.now());
+}
+
+function createAccount(data) {
+  stmts.insertAccount.run(data.id, data.userId, data.email, data.passwordHash, data.passwordSalt, Date.now());
+  return getAccountById(data.id);
+}
+
+function markAccountLogin(id) {
+  stmts.updateAccountLogin.run(Date.now(), id);
+}
+
+function setAccountResetToken(id, hash, expires) {
+  stmts.setResetToken.run(hash, expires, id);
+}
+
+function updateAccountPassword(id, hash, salt) {
+  stmts.updateAccountPassword.run(hash, salt, id);
 }
 
 // Сохранить профиль пользователя (ник, пол, возраст, город + премиум-поля)
@@ -816,6 +875,14 @@ module.exports = {
   getOrCreateUser,
   getUser,
   getUserByNick,
+  getAccountByEmail,
+  getAccountByUserId,
+  getAccountById,
+  getAccountByReset,
+  createAccount,
+  markAccountLogin,
+  setAccountResetToken,
+  updateAccountPassword,
   saveProfile,
   setSubscription,
   activePlan,
