@@ -546,9 +546,13 @@ body {
 body .app > .bottom-nav {
   position: static !important;
   transform: none !important;
-  margin: auto 0 max(28px, env(safe-area-inset-bottom, 0px)) !important;
-  width: 100% !important;
+  margin: auto -16px max(28px, env(safe-area-inset-bottom, 0px)) !important;
+  width: calc(100% + 32px) !important;
   max-width: none;
+  border-radius: 22px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
 }
 .nav-tab {
   flex: 1;
