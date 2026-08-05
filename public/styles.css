@@ -532,8 +532,9 @@ body {
 .bottom-nav {
   position: static !important;
   transform: none;
+  flex-shrink: 0;
   width: 100%; max-width: 520px;
-  margin: auto 0 max(88px, env(safe-area-inset-bottom, 0px));
+  margin: auto 0 max(120px, env(safe-area-inset-bottom, 0px));
   min-height: 76px;
   display: flex;
   justify-content: space-around;
@@ -550,7 +551,7 @@ body {
 body .app > .bottom-nav {
   position: static !important;
   transform: none !important;
-  margin: auto -16px max(88px, env(safe-area-inset-bottom, 0px)) !important;
+  margin: auto -16px max(120px, env(safe-area-inset-bottom, 0px)) !important;
   width: calc(100% + 32px) !important;
   max-width: none;
   border-radius: 22px;
