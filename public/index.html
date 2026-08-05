@@ -43,7 +43,7 @@
   </script>
 
   <!-- Основные стили (свой сервер) -->
-  <link rel="stylesheet" href="styles.css?v=navflow6" />
+  <link rel="stylesheet" href="styles.css?v=navflow7" />
   <!-- Иконки FontAwesome — свой сервер, грузим асинхронно, чтобы не блокировать
        отрисовку страницы на медленном канале. Всё локально, без внешних CDN. -->
   <link rel="stylesheet" href="/fa/css/all.min.css" media="print" onload="this.media='all'" />
@@ -639,6 +639,19 @@
       </section>
     </main>
 
+    <!-- Общая информация сайта доступна внизу каждой вкладки. -->
+    <footer class="site-footer global-site-footer">
+      <nav class="site-footer-links">
+        <a href="/privacy">Политика конфиденциальности</a>
+        <a href="/terms">Пользовательское соглашение</a>
+        <a href="/contacts">Контакты</a>
+      </nav>
+      <p class="site-footer-note">
+        Verse Team · Поддержка: <a href="mailto:support@verse-team.ru">support@verse-team.ru</a> ·
+        Администрация: <a href="mailto:admin@verse-team.ru">admin@verse-team.ru</a> · 18+
+      </p>
+    </footer>
+
     <!-- ============ НИЖНЯЯ НАВИГАЦИЯ ============ -->
     <nav class="bottom-nav">
       <button class="nav-tab active" data-tab="voice">
@@ -1095,6 +1108,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="app.js?v=navflow6"></script>
+  <script src="app.js?v=navflow7"></script>
 </body>
 </html>

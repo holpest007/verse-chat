@@ -518,6 +518,10 @@ body {
 .site-footer a:hover { color: var(--text); }
 .site-footer-note { margin: 0; }
 
+/* Общий футер ниже main отображается на всех вкладках приложения. */
+#panel-voice .site-footer { display: none; }
+.global-site-footer { margin-top: 22px; margin-bottom: 8px; }
+
 /* На телефоне ссылки остаются компактными, но каждая доступна для нажатия. */
 @media (max-width: 520px) {
   .site-footer { padding-left: 2px; padding-right: 2px; }
@@ -529,7 +533,7 @@ body {
   position: static !important;
   transform: none;
   width: 100%; max-width: 520px;
-  margin: auto 0 max(28px, env(safe-area-inset-bottom, 0px));
+  margin: auto 0 max(88px, env(safe-area-inset-bottom, 0px));
   min-height: 76px;
   display: flex;
   justify-content: space-around;
@@ -546,7 +550,7 @@ body {
 body .app > .bottom-nav {
   position: static !important;
   transform: none !important;
-  margin: auto -16px max(28px, env(safe-area-inset-bottom, 0px)) !important;
+  margin: auto -16px max(88px, env(safe-area-inset-bottom, 0px)) !important;
   width: calc(100% + 32px) !important;
   max-width: none;
   border-radius: 22px;
