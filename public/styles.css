@@ -530,7 +530,8 @@ body {
 }
 
 .bottom-nav {
-  position: static !important;
+  position: sticky !important;
+  bottom: env(safe-area-inset-bottom, 0px);
   transform: none;
   flex-shrink: 0;
   width: 100%; max-width: 520px;
@@ -549,7 +550,8 @@ body {
 
 /* Гарантируем обычный поток страницы даже при старом стиле в кеше Safari. */
 body .app > .bottom-nav {
-  position: static !important;
+  position: sticky !important;
+  bottom: env(safe-area-inset-bottom, 0px);
   transform: none !important;
   margin: auto -16px max(120px, env(safe-area-inset-bottom, 0px)) !important;
   width: calc(100% + 32px) !important;
@@ -558,6 +560,7 @@ body .app > .bottom-nav {
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.06);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  z-index: 20;
 }
 .nav-tab {
   flex: 1;
